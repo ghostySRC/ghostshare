@@ -1,0 +1,26 @@
+{
+  "name": "ghostshare",
+  "version": "1.0.0",
+  "description": "Private, browser-to-browser file transfers over your local network. No file data ever touches a server.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "p2p",
+    "webrtc",
+    "file-transfer",
+    "lan",
+    "local-network",
+    "private",
+    "encrypted",
+    "offline-first",
+    "self-hosted"
+  ],
+  "author": "GhostShare Contributors",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "ws": "^8.21.0"
+  }
+}

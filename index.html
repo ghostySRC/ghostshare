@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GhostShare — P2P File Transfer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        accent: {
+                            50: '#fffbeb',
+                            100: '#fef3c7',
+                            200: '#fde68a',
+                            300: '#fcd34d',
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                            600: '#d97706',
+                            700: '#b45309',
+                            800: '#92400e',
+                            900: '#78350f',
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['"JetBrains Mono"', '"Fira Code"', 'Consolas', 'monospace'],
+                        sans: ['"Inter"', 'system-ui', 'sans-serif'],
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.4s ease-out',
+                        'slide-up': 'slideUp 0.35s ease-out',
+                        'pulse-dot': 'pulseDot 2s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideUp: {
+                            '0%': { opacity: '0', transform: 'translateY(16px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        pulseDot: {
+                            '0%, 100%': { opacity: '1' },
+                            '50%': { opacity: '0.3' },
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+        * {
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+
+        body {
+            background: #0c0c0c;
+            min-height: 100vh;
+        }
+
+        /* Subtle dot-grid pattern */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+
+        .card {
+            background: #141414;
+            border: 1px solid #2a2a2a;
+            transition: border-color 0.25s ease;
+        }
+
+        .card:hover {
+            border-color: #3a3a3a;
+        }
+
+        .card-accent {
+            border-color: #3d3000;
+        }
+
+        .card-accent:hover {
+            border-color: #5a4200;
+        }
+
+        .drop-zone {
+            border: 1px dashed #2a2a2a;
+            background: #0f0f0f;
+            transition: all 0.25s ease;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.drag-over {
+            border-color: #f59e0b;
+            background: #1a1400;
+        }
+
+        .progress-track {
+            background: #1a1a1a;
+        }
+
+        .progress-fill {
+            background: #f59e0b;
+            transition: width 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #f59e0b;
+            color: #0c0c0c;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #fbbf24;
+        }
+
+        .btn-primary:active:not(:disabled) {
+            background: #d97706;
+        }
+
+        .btn-primary:disabled {
+            background: #2a2a2a;
+            color: #555;
+        }
+
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid #2a2a2a;
+            color: #999;
+            transition: all 0.2s ease;
+        }
+
+        .btn-ghost:hover {
+            background: #1a1a1a;
+            border-color: #444;
+            color: #ddd;
+        }
+
+        .btn-ghost-danger:hover {
+            border-color: #5c2020;
+            color: #ef4444;
+            background: #1a1010;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+
+        .status-dot.connecting { background: #f59e0b; animation: pulseDot 1.5s infinite; }
+        .status-dot.connected { background: #22c55e; }
+        .status-dot.error { background: #ef4444; }
+        .status-dot.idle { background: #444; }
+
+        .toast {
+            animation: toastIn 0.25s ease-out, toastOut 0.2s ease-in 3.5s forwards;
+        }
+
+        @keyframes toastIn {
+            from { transform: translateY(-8px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes toastOut {
+            from { transform: translateY(0); opacity: 1; }
+            to { transform: translateY(-8px); opacity: 0; }
+        }
+
+        .mono { font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; }
+
+        .kbd {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 3px;
+            padding: 2px 6px;
+            font-size: 11px;
+            font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+            color: #888;
+        }
+
+        ::selection {
+            background: #f59e0b;
+            color: #0c0c0c;
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #444; }
+
+        input:focus {
+            outline: none;
+            border-color: #f59e0b !important;
+        }
+    </style>
+</head>
+<body class="text-gray-300 antialiased">
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Main Container -->
+    <div class="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 py-8">
+
+        <!-- Header -->
+        <header class="text-center mb-10 animate-fade-in">
+            <div class="flex items-center justify-center gap-2 mb-3">
+                <span class="mono text-accent-500 text-sm font-medium tracking-widest uppercase opacity-60">P2P</span>
+            </div>
+            <h1 class="text-3xl font-bold tracking-tight text-white">
+                Ghost<span class="text-accent-500 font-normal">Share</span>
+            </h1>
+            <p class="text-gray-600 text-sm mt-2 max-w-xs mx-auto leading-relaxed">
+                Direct browser-to-browser file transfer.
+                <br>Zero server storage. WebRTC encrypted.
+            </p>
+        </header>
+
+        <!-- Main Card -->
+        <div id="mainCard" class="card rounded-lg p-8 w-full max-w-md animate-slide-up">
+
+            <!-- Sender View (Default) -->
+            <div id="senderView">
+                <div class="mb-6">
+                    <h2 class="text-base font-semibold text-white mb-1">Send a file</h2>
+                    <p class="text-gray-600 text-xs">Select a file to generate a one-time transfer link.</p>
+                </div>
+
+                <!-- Drop Zone -->
+                <div id="dropZone" class="drop-zone rounded-md p-8 text-center cursor-pointer mb-6">
+                    <input type="file" id="fileInput" class="hidden" />
+                    <div id="dropZoneContent">
+                        <svg class="w-8 h-8 text-gray-600 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                        </svg>
+                        <p class="text-gray-500 text-sm mb-1">Drop a file here</p>
+                        <p class="text-gray-700 text-xs">or click to browse &middot; up to 1 GB</p>
+                    </div>
+                    <div id="fileSelectedContent" class="hidden">
+                        <svg class="w-8 h-8 text-accent-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <p id="selectedFileName" class="text-gray-300 font-medium text-sm break-all"></p>
+                        <p id="selectedFileSize" class="text-gray-600 text-xs mt-1 mono"></p>
+                        <button id="clearFileBtn" class="mt-3 text-xs text-gray-600 hover:text-gray-400 transition-colors underline underline-offset-2">Remove</button>
+                    </div>
+                </div>
+
+                <!-- Generate Link Button -->
+                <button id="generateLinkBtn" disabled class="btn-primary w-full py-2.5 rounded-md text-sm disabled:cursor-not-allowed">
+                    <span id="generateLinkText">Generate Link</span>
+                    <span id="generateLinkSpinner" class="hidden inline-flex items-center gap-2">
+                        <svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        Creating session&hellip;
+                    </span>
+                </button>
+            </div>
+
+            <!-- Transfer View (Hidden initially) -->
+            <div id="transferView" class="hidden">
+                <div class="mb-6">
+                    <h2 class="text-base font-semibold text-white mb-1" id="transferTitle">Ready</h2>
+                    <p class="text-gray-600 text-xs" id="transferSubtitle">Waiting for receiver&hellip;</p>
+                </div>
+
+                <!-- Connection Status -->
+                <div class="card rounded-md px-4 py-3 mb-4 flex items-center gap-3">
+                    <span class="status-dot connecting" id="statusDot"></span>
+                    <span id="statusText" class="text-xs text-gray-500">Initializing&hellip;</span>
+                </div>
+
+                <!-- File Info -->
+                <div id="transferFileInfo" class="card rounded-md px-4 py-3 mb-4 hidden">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-6 h-6 text-accent-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <div class="min-w-0">
+                            <p id="transferFileName" class="text-gray-300 font-medium text-xs truncate"></p>
+                            <p id="transferFileSize" class="text-gray-600 text-[10px] mt-0.5 mono"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progress Section -->
+                <div id="progressSection" class="hidden mb-5">
+                    <div class="flex justify-between text-xs mb-2">
+                        <span id="progressLabel" class="text-gray-500">Transferring&hellip;</span>
+                        <span id="progressPercent" class="text-accent-500 font-semibold mono">0%</span>
+                    </div>
+                    <div class="progress-track w-full h-1.5 rounded-full overflow-hidden">
+                        <div id="progressBar" class="progress-fill h-full rounded-full" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between text-[10px] mt-2 text-gray-600">
+                        <span id="transferSpeed" class="mono">--</span>
+                        <span id="transferEta" class="mono">--</span>
+                    </div>
+                </div>
+
+                <!-- Session Link (Sender) -->
+                <div id="sessionLinkBox" class="hidden mb-4">
+                    <label class="block text-[10px] text-gray-600 mb-1.5 uppercase tracking-wider">Share this link</label>
+                    <div class="flex gap-2">
+                        <input id="sessionLinkInput" type="text" readonly class="flex-1 bg-[#0f0f0f] border border-[#2a2a2a] rounded-md px-3 py-2 text-xs text-gray-500 mono transition-colors" />
+                        <button id="copyLinkBtn" class="btn-ghost px-4 py-2 rounded-md text-xs font-medium whitespace-nowrap">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-3">
+                    <button id="cancelTransferBtn" class="btn-ghost btn-ghost-danger flex-1 py-2.5 rounded-md text-xs font-medium">
+                        Cancel
+                    </button>
+                    <button id="sendFileBtn" class="btn-primary flex-1 py-2.5 rounded-md text-sm hidden">
+                        Send File
+                    </button>
+                </div>
+            </div>
+
+            <!-- Error Banner -->
+            <div id="errorBanner" class="hidden mt-4 p-4 bg-[#1a1010] border border-[#5c2020] rounded-md">
+                <div class="flex items-start gap-3">
+                    <svg class="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-red-400 font-medium text-xs">Connection Error</p>
+                        <p id="errorMessage" class="text-red-600 text-[10px] mt-1 leading-relaxed"></p>
+                    </div>
+                    <button id="dismissErrorBtn" class="text-red-700 hover:text-red-500 transition-colors flex-shrink-0">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="mt-10 text-center text-gray-800 text-[10px] animate-fade-in">
+            <span>Files stream directly between browsers &middot; WebRTC</span>
+            <br>
+            <span class="mono text-gray-800">Esc</span> <span class="text-gray-800">to cancel transfer</span>
+        </footer>
+    </div>
+
+    <script>
+    // ============================================================
+    // GhostShare — P2P File Transfer Application
+    // ============================================================
+
+    (function() {
+        'use strict';
+
+        // --- Configuration ---
+        const CHUNK_SIZE = 16384; // 16KB
+        const BUFFERED_AMOUNT_LOW_THRESHOLD = 65536; // 64KB
+        const SIGNALING_SERVER_URL = window.location.protocol.replace('http', 'ws') + '//' + window.location.host;
+        const ICE_SERVERS = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+
+        // --- State ---
+        let selectedFile = null;
+        let sessionId = null;
+        let isSender = false;
+        let isReceiver = false;
+        let peerConnection = null;
+        let dataChannel = null;
+        let signalingSocket = null;
+        let receivedChunks = [];
+        let receivedFileMetadata = null;
+        let receivedBytes = 0;
+        let transferStartTime = null;
+        let lastProgressUpdate = 0;
+        let bytesSinceLastUpdate = 0;
+        let transferActive = false;
+        let sendQueuePaused = false;
+        let currentChunkIndex = 0;
+        let totalChunks = 0;
+        let fileReader = null;
+        let connectionTimeout = null;
+        let signalingReady = false;
+
+        // --- DOM Elements ---
+        const $ = (sel) => document.querySelector(sel);
+
+        const senderView = $('#senderView');
+        const transferView = $('#transferView');
+        const dropZone = $('#dropZone');
+        const dropZoneContent = $('#dropZoneContent');
+        const fileSelectedContent = $('#fileSelectedContent');
+        const fileInput = $('#fileInput');
+        const selectedFileName = $('#selectedFileName');
+        const selectedFileSize = $('#selectedFileSize');
+        const clearFileBtn = $('#clearFileBtn');
+        const generateLinkBtn = $('#generateLinkBtn');
+        const generateLinkText = $('#generateLinkText');
+        const generateLinkSpinner = $('#generateLinkSpinner');
+        const transferTitle = $('#transferTitle');
+        const transferSubtitle = $('#transferSubtitle');
+        const statusDot = $('#statusDot');
+        const statusText = $('#statusText');
+        const transferFileInfo = $('#transferFileInfo');
+        const transferFileName = $('#transferFileName');
+        const transferFileSize = $('#transferFileSize');
+        const progressSection = $('#progressSection');
+        const progressLabel = $('#progressLabel');
+        const progressPercent = $('#progressPercent');
+        const progressBar = $('#progressBar');
+        const transferSpeed = $('#transferSpeed');
+        const transferEta = $('#transferEta');
+        const sessionLinkBox = $('#sessionLinkBox');
+        const sessionLinkInput = $('#sessionLinkInput');
+        const copyLinkBtn = $('#copyLinkBtn');
+        const cancelTransferBtn = $('#cancelTransferBtn');
+        const sendFileBtn = $('#sendFileBtn');
+        const errorBanner = $('#errorBanner');
+        const errorMessage = $('#errorMessage');
+        const dismissErrorBtn = $('#dismissErrorBtn');
+        const toastContainer = $('#toastContainer');
+
+        // --- Utility Functions ---
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const units = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            const size = (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0);
+            return `${size} ${units[i]}`;
+        }
+
+        function formatSpeed(bytesPerSecond) {
+            if (bytesPerSecond < 1024) return `${bytesPerSecond.toFixed(0)} B/s`;
+            if (bytesPerSecond < 1048576) return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`;
+            return `${(bytesPerSecond / 1048576).toFixed(1)} MB/s`;
+        }
+
+        function formatTime(seconds) {
+            if (!isFinite(seconds) || seconds <= 0) return '--';
+            if (seconds < 60) return `${Math.ceil(seconds)}s`;
+            const m = Math.floor(seconds / 60);
+            const s = Math.ceil(seconds % 60);
+            return `${m}m ${s}s`;
+        }
+
+        function generateSessionId() {
+            const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+            let id = '';
+            const array = new Uint8Array(12);
+            crypto.getRandomValues(array);
+            for (let i = 0; i < 12; i++) {
+                id += chars[array[i] % chars.length];
+            }
+            return id;
+        }
+
+        function showToast(message, type) {
+            type = type || 'info';
+            var borderColor, bgColor, textColor, iconSvg;
+            if (type === 'success') {
+                borderColor = 'border-[#1a3a1a]';
+                bgColor = 'bg-[#0f1a0f]';
+                textColor = 'text-green-400';
+                iconSvg = '<svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+            } else if (type === 'error') {
+                borderColor = 'border-[#3a1a1a]';
+                bgColor = 'bg-[#1a0f0f]';
+                textColor = 'text-red-400';
+                iconSvg = '<svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+            } else if (type === 'warning') {
+                borderColor = 'border-[#3a2a1a]';
+                bgColor = 'bg-[#1a140f]';
+                textColor = 'text-yellow-400';
+                iconSvg = '<svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>';
+            } else {
+                borderColor = 'border-[#2a2a2a]';
+                bgColor = 'bg-[#141414]';
+                textColor = 'text-gray-300';
+                iconSvg = '<svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+            }
+            var toast = document.createElement('div');
+            toast.className = 'toast pointer-events-auto flex items-center gap-2 px-3 py-2.5 rounded-md border ' + borderColor + ' ' + bgColor + ' ' + textColor + ' text-xs';
+            toast.innerHTML = iconSvg + '<span>' + message + '</span>';
+            toastContainer.appendChild(toast);
+            setTimeout(function() {
+                if (toast.parentNode) toast.remove();
+            }, 4000);
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorBanner.classList.remove('hidden');
+        }
+
+        function hideError() {
+            errorBanner.classList.add('hidden');
+        }
+
+        function updateStatus(state, text) {
+            statusDot.className = 'status-dot ' + state;
+            statusText.textContent = text;
+        }
+
+        function resetUI() {
+            senderView.classList.remove('hidden');
+            transferView.classList.add('hidden');
+            dropZoneContent.classList.remove('hidden');
+            fileSelectedContent.classList.add('hidden');
+            generateLinkBtn.disabled = true;
+            generateLinkText.classList.remove('hidden');
+            generateLinkSpinner.classList.add('hidden');
+            transferFileInfo.classList.add('hidden');
+            progressSection.classList.add('hidden');
+            sessionLinkBox.classList.add('hidden');
+            sendFileBtn.classList.add('hidden');
+            progressBar.style.width = '0%';
+            progressPercent.textContent = '0%';
+            transferSpeed.textContent = '--';
+            transferEta.textContent = '--';
+            hideError();
+            updateStatus('idle', 'Ready');
+            selectedFile = null;
+            fileInput.value = '';
+        }
+
+        function resetTransferState() {
+            receivedChunks = [];
+            receivedFileMetadata = null;
+            receivedBytes = 0;
+            transferStartTime = null;
+            lastProgressUpdate = 0;
+            bytesSinceLastUpdate = 0;
+            transferActive = false;
+            sendQueuePaused = false;
+            currentChunkIndex = 0;
+            totalChunks = 0;
+            if (fileReader && fileReader.readyState === 1) {
+                fileReader.abort();
+            }
+            fileReader = null;
+        }
+
+        function cleanupConnection() {
+            if (connectionTimeout) {
+                clearTimeout(connectionTimeout);
+                connectionTimeout = null;
+            }
+            if (dataChannel) {
+                dataChannel.onopen = null;
+                dataChannel.onclose = null;
+                dataChannel.onerror = null;
+                dataChannel.onmessage = null;
+                dataChannel.onbufferedamountlow = null;
+                try { dataChannel.close(); } catch(e) {}
+                dataChannel = null;
+            }
+            if (peerConnection) {
+                peerConnection.onicecandidate = null;
+                peerConnection.oniceconnectionstatechange = null;
+                peerConnection.onsignalingstatechange = null;
+                peerConnection.ondatachannel = null;
+                try { peerConnection.close(); } catch(e) {}
+                peerConnection = null;
+            }
+            if (signalingSocket) {
+                signalingSocket.onopen = null;
+                signalingSocket.onclose = null;
+                signalingSocket.onerror = null;
+                signalingSocket.onmessage = null;
+                try { signalingSocket.close(); } catch(e) {}
+                signalingSocket = null;
+            }
+            signalingReady = false;
+        }
+
+        // --- WebRTC: Create Peer Connection ---
+        function createPeerConnection() {
+            peerConnection = new RTCPeerConnection(ICE_SERVERS);
+
+            peerConnection.onicecandidate = function(event) {
+                if (event.candidate && signalingSocket && signalingSocket.readyState === WebSocket.OPEN) {
+                    sendSignalingMessage({
+                        type: 'ice-candidate',
+                        candidate: event.candidate
+                    });
+                }
+            };
+
+            peerConnection.oniceconnectionstatechange = function() {
+                var state = peerConnection.iceConnectionState;
+                console.log('ICE Connection State:', state);
+                if (state === 'connected' || state === 'completed') {
+                    updateStatus('connected', 'Secure Tunnel Established');
+                    if (isSender) {
+                        transferSubtitle.textContent = 'Receiver connected. Ready to send.';
+                        sendFileBtn.classList.remove('hidden');
+                    }
+                    if (isReceiver) {
+                        transferSubtitle.textContent = 'Secure tunnel established. Waiting for file...';
+                    }
+                } else if (state === 'disconnected' || state === 'failed') {
+                    updateStatus('error', 'Connection Lost');
+                    showError('The peer connection was lost. Please try again.');
+                    if (transferActive) {
+                        transferActive = false;
+                        sendQueuePaused = true;
+                    }
+                } else if (state === 'checking') {
+                    updateStatus('connecting', 'Establishing connection...');
+                }
+            };
+
+            peerConnection.onsignalingstatechange = function() {
+                console.log('Signaling State:', peerConnection.signalingState);
+            };
+
+            // Receiver: handle incoming data channel
+            peerConnection.ondatachannel = function(event) {
+                console.log('Data channel received');
+                dataChannel = event.channel;
+                setupDataChannel();
+            };
+
+            return peerConnection;
+        }
+
+        // --- WebRTC: Setup Data Channel ---
+        function setupDataChannel() {
+            if (!dataChannel) return;
+
+            dataChannel.binaryType = 'arraybuffer';
+
+            dataChannel.onopen = function() {
+                console.log('Data channel opened');
+                updateStatus('connected', 'Secure Tunnel Established');
+                if (isSender) {
+                    transferSubtitle.textContent = 'Data channel open. Click Send File to begin.';
+                    sendFileBtn.classList.remove('hidden');
+                }
+                if (isReceiver) {
+                    transferSubtitle.textContent = 'Secure tunnel established. Waiting for file...';
+                }
+            };
+
+            dataChannel.onclose = function() {
+                console.log('Data channel closed');
+                if (transferActive) {
+                    updateStatus('error', 'Transfer Interrupted');
+                    showError('The data channel was closed unexpectedly.');
+                    transferActive = false;
+                    sendQueuePaused = true;
+                }
+            };
+
+            dataChannel.onerror = function(error) {
+                console.error('Data channel error:', error);
+                showError('A data channel error occurred.');
+            };
+
+            dataChannel.onmessage = function(event) {
+                handleIncomingMessage(event);
+            };
+
+            // Set up backpressure threshold
+            dataChannel.bufferedAmountLowThreshold = BUFFERED_AMOUNT_LOW_THRESHOLD;
+
+            dataChannel.onbufferedamountlow = function() {
+                if (sendQueuePaused && transferActive) {
+                    console.log('Buffer low, resuming send...');
+                    sendQueuePaused = false;
+                    sendNextChunk();
+                }
+            };
+        }
+
+        // --- WebRTC: Handle Incoming Messages ---
+        function handleIncomingMessage(event) {
+            if (typeof event.data === 'string') {
+                try {
+                    var msg = JSON.parse(event.data);
+                    if (msg.type === 'file-metadata') {
+                        handleFileMetadata(msg);
+                    } else if (msg.type === 'transfer-complete') {
+                        handleTransferComplete();
+                    }
+                } catch (e) {
+                    console.error('Failed to parse control message:', e);
+                }
+            } else if (event.data instanceof ArrayBuffer) {
+                handleBinaryChunk(event.data);
+            }
+        }
+
+        function handleFileMetadata(msg) {
+            receivedFileMetadata = msg;
+            receivedChunks = new Array(msg.totalChunks);
+            receivedBytes = 0;
+            transferStartTime = Date.now();
+            lastProgressUpdate = Date.now();
+            bytesSinceLastUpdate = 0;
+            transferActive = true;
+
+            transferFileInfo.classList.remove('hidden');
+            transferFileName.textContent = msg.fileName;
+            transferFileSize.textContent = formatFileSize(msg.fileSize);
+            progressSection.classList.remove('hidden');
+            progressLabel.textContent = 'Receiving...';
+            progressPercent.textContent = '0%';
+            progressBar.style.width = '0%';
+            transferSpeed.textContent = '--';
+            transferEta.textContent = '--';
+            transferTitle.textContent = 'Receiving';
+            transferSubtitle.textContent = 'Downloading file...';
+            updateStatus('connected', 'Receiving...');
+            hideError();
+        }
+
+        function handleBinaryChunk(buffer) {
+            if (!receivedFileMetadata || !transferActive) return;
+
+            var view = new DataView(buffer);
+            var chunkIndex = view.getUint32(0, true);
+            var chunkData = new Uint8Array(buffer, 4);
+
+            if (chunkIndex >= 0 && chunkIndex < receivedFileMetadata.totalChunks) {
+                if (!receivedChunks[chunkIndex]) {
+                    receivedChunks[chunkIndex] = chunkData;
+                    receivedBytes += chunkData.byteLength;
+                }
+            }
+
+            var now = Date.now();
+            bytesSinceLastUpdate += chunkData.byteLength;
+            if (now - lastProgressUpdate > 100) {
+                updateReceiveProgress(now);
+                lastProgressUpdate = now;
+                bytesSinceLastUpdate = 0;
+            }
+        }
+
+        function updateReceiveProgress(now) {
+            if (!receivedFileMetadata) return;
+            var total = receivedFileMetadata.fileSize;
+            var received = receivedBytes;
+            var percent = total > 0 ? Math.min(100, Math.round((received / total) * 100)) : 0;
+
+            progressPercent.textContent = percent + '%';
+            progressBar.style.width = percent + '%';
+
+            var elapsed = (now - transferStartTime) / 1000;
+            var speed = elapsed > 0 ? received / elapsed : 0;
+            transferSpeed.textContent = formatSpeed(speed);
+
+            var remaining = total - received;
+            var eta = speed > 0 ? remaining / speed : Infinity;
+            transferEta.textContent = formatTime(eta);
+        }
+
+        function handleTransferComplete() {
+            if (!receivedFileMetadata || !transferActive) return;
+            transferActive = false;
+
+            updateStatus('connected', 'Complete');
+            progressPercent.textContent = '100%';
+            progressBar.style.width = '100%';
+            progressLabel.textContent = 'Done';
+            transferSubtitle.textContent = 'File received.';
+            transferSpeed.textContent = '--';
+            transferEta.textContent = '--';
+
+            var chunks = receivedChunks;
+            var metadata = receivedFileMetadata;
+
+            var missingChunks = [];
+            for (var i = 0; i < metadata.totalChunks; i++) {
+                if (!chunks[i]) missingChunks.push(i);
+            }
+
+            if (missingChunks.length > 0) {
+                showError('Transfer incomplete: ' + missingChunks.length + ' chunks missing. Please retry.');
+                return;
+            }
+
+            try {
+                var blob = new Blob(chunks, { type: metadata.fileType || 'application/octet-stream' });
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = metadata.fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+
+                setTimeout(function() {
+                    URL.revokeObjectURL(url);
+                }, 1000);
+
+                showToast('Download complete!', 'success');
+            } catch (e) {
+                console.error('Failed to assemble file:', e);
+                showError('Failed to assemble the received file.');
+            }
+
+            // Clear memory
+            receivedChunks = [];
+            receivedFileMetadata = null;
+            receivedBytes = 0;
+        }
+
+        // --- File Sending with Backpressure ---
+        function startFileSend() {
+            if (!dataChannel || dataChannel.readyState !== 'open') {
+                showError('Data channel is not open. Please wait for the connection.');
+                return;
+            }
+            if (!selectedFile) {
+                showError('No file selected.');
+                return;
+            }
+
+            transferActive = true;
+            sendQueuePaused = false;
+            currentChunkIndex = 0;
+            totalChunks = Math.ceil(selectedFile.size / CHUNK_SIZE);
+            transferStartTime = Date.now();
+            lastProgressUpdate = Date.now();
+            bytesSinceLastUpdate = 0;
+
+            transferFileInfo.classList.remove('hidden');
+            transferFileName.textContent = selectedFile.name;
+            transferFileSize.textContent = formatFileSize(selectedFile.size);
+            progressSection.classList.remove('hidden');
+            progressLabel.textContent = 'Sending...';
+            progressPercent.textContent = '0%';
+            progressBar.style.width = '0%';
+            transferSpeed.textContent = '--';
+            transferEta.textContent = '--';
+            sendFileBtn.classList.add('hidden');
+            transferTitle.textContent = 'Sending';
+            transferSubtitle.textContent = 'Transferring...';
+            updateStatus('connected', 'Sending...');
+            hideError();
+
+            var metadata = {
+                type: 'file-metadata',
+                fileName: selectedFile.name,
+                fileSize: selectedFile.size,
+                fileType: selectedFile.type || 'application/octet-stream',
+                totalChunks: totalChunks,
+                chunkSize: CHUNK_SIZE
+            };
+
+            try {
+                dataChannel.send(JSON.stringify(metadata));
+            } catch (e) {
+                console.error('Failed to send metadata:', e);
+                showError('Failed to initiate file transfer.');
+                transferActive = false;
+                return;
+            }
+
+            sendNextChunk();
+        }
+
+        function sendNextChunk() {
+            if (!transferActive || sendQueuePaused) return;
+            if (!dataChannel || dataChannel.readyState !== 'open') {
+                transferActive = false;
+                showError('Data channel closed during transfer.');
+                return;
+            }
+
+            if (dataChannel.bufferedAmount > BUFFERED_AMOUNT_LOW_THRESHOLD) {
+                console.log('Backpressure: bufferedAmount =', dataChannel.bufferedAmount, 'pausing...');
+                sendQueuePaused = true;
+                return;
+            }
+
+            if (currentChunkIndex >= totalChunks) {
+                transferActive = false;
+                try {
+                    dataChannel.send(JSON.stringify({ type: 'transfer-complete' }));
+                } catch (e) {
+                    console.error('Failed to send completion signal:', e);
+                }
+                updateStatus('connected', 'Complete');
+                progressPercent.textContent = '100%';
+                progressBar.style.width = '100%';
+                progressLabel.textContent = 'Done';
+                transferSubtitle.textContent = 'File sent.';
+                transferSpeed.textContent = '--';
+                transferEta.textContent = '--';
+                showToast('File sent!', 'success');
+                return;
+            }
+
+            var start = currentChunkIndex * CHUNK_SIZE;
+            var end = Math.min(start + CHUNK_SIZE, selectedFile.size);
+            var blob = selectedFile.slice(start, end);
+
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                if (!transferActive) return;
+
+                var chunkData = new Uint8Array(e.target.result);
+                var header = new ArrayBuffer(4);
+                var headerView = new DataView(header);
+                headerView.setUint32(0, currentChunkIndex, true);
+
+                var packet = new Uint8Array(4 + chunkData.byteLength);
+                packet.set(new Uint8Array(header), 0);
+                packet.set(chunkData, 4);
+
+                try {
+                    dataChannel.send(packet.buffer);
+                } catch (err) {
+                    console.error('Send error:', err);
+                    transferActive = false;
+                    showError('Failed to send data chunk. Connection may be lost.');
+                    return;
+                }
+
+                var now = Date.now();
+                bytesSinceLastUpdate += chunkData.byteLength;
+                if (now - lastProgressUpdate > 100) {
+                    updateSendProgress(now);
+                    lastProgressUpdate = now;
+                    bytesSinceLastUpdate = 0;
+                }
+
+                currentChunkIndex++;
+
+                if (dataChannel.bufferedAmount > BUFFERED_AMOUNT_LOW_THRESHOLD) {
+                    sendQueuePaused = true;
+                } else {
+                    setTimeout(function() { sendNextChunk(); }, 0);
+                }
+            };
+
+            reader.onerror = function(e) {
+                console.error('FileReader error:', e);
+                transferActive = false;
+                showError('Failed to read file chunk.');
+            };
+
+            reader.readAsArrayBuffer(blob);
+        }
+
+        function updateSendProgress(now) {
+            if (!selectedFile) return;
+            var total = selectedFile.size;
+            var sent = currentChunkIndex * CHUNK_SIZE;
+            var percent = total > 0 ? Math.min(100, Math.round((sent / total) * 100)) : 0;
+
+            progressPercent.textContent = percent + '%';
+            progressBar.style.width = percent + '%';
+
+            var elapsed = (now - transferStartTime) / 1000;
+            var speed = elapsed > 0 ? sent / elapsed : 0;
+            transferSpeed.textContent = formatSpeed(speed);
+
+            var remaining = total - sent;
+            var eta = speed > 0 ? remaining / speed : Infinity;
+            transferEta.textContent = formatTime(eta);
+        }
+
+        // --- Signaling ---
+        function sendSignalingMessage(msg) {
+            if (signalingSocket && signalingSocket.readyState === WebSocket.OPEN) {
+                var payload = {
+                    sessionId: sessionId
+                };
+                Object.keys(msg).forEach(function(k) { payload[k] = msg[k]; });
+                signalingSocket.send(JSON.stringify(payload));
+            }
+        }
+
+        function connectSignaling(sid, asSender) {
+            sessionId = sid;
+            isSender = asSender;
+            isReceiver = !asSender;
+
+            return new Promise(function(resolve, reject) {
+                signalingSocket = new WebSocket(SIGNALING_SERVER_URL);
+
+                signalingSocket.onopen = function() {
+                    console.log('Signaling connected');
+                    signalingReady = true;
+
+                    signalingSocket.send(JSON.stringify({
+                        type: 'register',
+                        sessionId: sessionId,
+                        role: isSender ? 'sender' : 'receiver'
+                    }));
+
+                    connectionTimeout = setTimeout(function() {
+                        if (!transferActive &&
+                            (!peerConnection || peerConnection.iceConnectionState !== 'connected')) {
+                            showError('Connection timed out. The other peer may not have joined.');
+                            updateStatus('error', 'Timeout');
+                        }
+                    }, 60000);
+
+                    resolve();
+                };
+
+                signalingSocket.onmessage = function(event) {
+                    try {
+                        var msg = JSON.parse(event.data);
+                        handleSignalingMessage(msg);
+                    } catch (e) {
+                        console.error('Failed to parse signaling message:', e);
+                    }
+                };
+
+                signalingSocket.onclose = function() {
+                    console.log('Signaling disconnected');
+                    signalingReady = false;
+                    if (transferActive) {
+                        updateStatus('error', 'Signaling Lost');
+                        showError('Signaling server connection lost.');
+                    }
+                };
+
+                signalingSocket.onerror = function(error) {
+                    console.error('Signaling error:', error);
+                    reject(new Error('Failed to connect to signaling server'));
+                };
+            });
+        }
+
+        async function handleSignalingMessage(msg) {
+            switch (msg.type) {
+                case 'registered':
+                    console.log('Registered with session:', sessionId);
+                    if (isReceiver) {
+                        updateStatus('connecting', 'Waiting for sender...');
+                        transferSubtitle.textContent = 'Waiting for sender...';
+                    }
+                    break;
+
+                case 'peer-joined':
+                    console.log('Peer joined session');
+                    if (isSender) {
+                        updateStatus('connecting', 'Peer joined. Connecting...');
+                        transferSubtitle.textContent = 'Receiver found. Establishing tunnel...';
+                        await initiateOffer();
+                    }
+                    break;
+
+                case 'offer':
+                    if (isReceiver && peerConnection) {
+                        try {
+                            await peerConnection.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+                            updateStatus('connecting', 'Creating answer...');
+                            var answer = await peerConnection.createAnswer();
+                            await peerConnection.setLocalDescription(answer);
+                            sendSignalingMessage({
+                                type: 'answer',
+                                sdp: peerConnection.localDescription
+                            });
+                            updateStatus('connecting', 'Connecting...');
+                        } catch (e) {
+                            console.error('Failed to handle offer:', e);
+                            showError('Failed to establish connection.');
+                        }
+                    }
+                    break;
+
+                case 'answer':
+                    if (isSender && peerConnection) {
+                        try {
+                            await peerConnection.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+                            updateStatus('connecting', 'Tunnel establishing...');
+                        } catch (e) {
+                            console.error('Failed to handle answer:', e);
+                            showError('Failed to complete connection.');
+                        }
+                    }
+                    break;
+
+                case 'ice-candidate':
+                    if (peerConnection && msg.candidate) {
+                        try {
+                            await peerConnection.addIceCandidate(new RTCIceCandidate(msg.candidate));
+                        } catch (e) {
+                            console.error('Failed to add ICE candidate:', e);
+                        }
+                    }
+                    break;
+
+                case 'peer-left':
+                    updateStatus('error', 'Peer Disconnected');
+                    showError('The other peer has disconnected.');
+                    transferActive = false;
+                    sendQueuePaused = true;
+                    break;
+
+                case 'error':
+                    showError(msg.message || 'An unknown signaling error occurred.');
+                    break;
+            }
+        }
+
+        async function initiateOffer() {
+            if (!peerConnection) {
+                createPeerConnection();
+            }
+
+            dataChannel = peerConnection.createDataChannel('file-transfer', {
+                ordered: true
+            });
+            setupDataChannel();
+
+            try {
+                var offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                sendSignalingMessage({
+                    type: 'offer',
+                    sdp: peerConnection.localDescription
+                });
+                updateStatus('connecting', 'Offer sent. Waiting...');
+            } catch (e) {
+                console.error('Failed to create offer:', e);
+                showError('Failed to initiate connection.');
+            }
+        }
+
+        // --- UI Event Handlers ---
+        function handleFileSelect(file) {
+            if (file.size > 1073741824) {
+                showToast('File exceeds 1 GB limit.', 'error');
+                return;
+            }
+            selectedFile = file;
+            selectedFileName.textContent = file.name;
+            selectedFileSize.textContent = formatFileSize(file.size);
+            dropZoneContent.classList.add('hidden');
+            fileSelectedContent.classList.remove('hidden');
+            generateLinkBtn.disabled = false;
+            hideError();
+        }
+
+        dropZone.addEventListener('click', function(e) {
+            if (e.target === clearFileBtn) return;
+            fileInput.click();
+        });
+
+        dropZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', function() {
+            dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            var files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', function() {
+            if (fileInput.files.length > 0) {
+                handleFileSelect(fileInput.files[0]);
+            }
+        });
+
+        clearFileBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            selectedFile = null;
+            fileInput.value = '';
+            dropZoneContent.classList.remove('hidden');
+            fileSelectedContent.classList.add('hidden');
+            generateLinkBtn.disabled = true;
+        });
+
+        generateLinkBtn.addEventListener('click', async function() {
+            if (!selectedFile) return;
+
+            generateLinkBtn.disabled = true;
+            generateLinkText.classList.add('hidden');
+            generateLinkSpinner.classList.remove('hidden');
+
+            try {
+                var sid = generateSessionId();
+                resetTransferState();
+                cleanupConnection();
+
+                await connectSignaling(sid, true);
+                createPeerConnection();
+
+                senderView.classList.add('hidden');
+                transferView.classList.remove('hidden');
+                transferTitle.textContent = 'Ready';
+                transferSubtitle.textContent = 'Waiting for receiver...';
+                updateStatus('connecting', 'Waiting for receiver...');
+                transferFileInfo.classList.remove('hidden');
+                transferFileName.textContent = selectedFile.name;
+                transferFileSize.textContent = formatFileSize(selectedFile.size);
+                sessionLinkBox.classList.remove('hidden');
+                sendFileBtn.classList.add('hidden');
+                progressSection.classList.add('hidden');
+                hideError();
+
+                var link = window.location.origin + window.location.pathname + '?session=' + sid;
+                sessionLinkInput.value = link;
+
+                try {
+                    await navigator.clipboard.writeText(link);
+                    showToast('Link copied!', 'success');
+                } catch (e) {
+                    showToast('Session created. Share the link manually.', 'info');
+                }
+
+                generateLinkText.classList.remove('hidden');
+                generateLinkSpinner.classList.add('hidden');
+                generateLinkBtn.disabled = false;
+
+            } catch (e) {
+                console.error('Failed to create session:', e);
+                showError('Failed to connect to signaling server. Is it running?');
+                generateLinkText.classList.remove('hidden');
+                generateLinkSpinner.classList.add('hidden');
+                generateLinkBtn.disabled = false;
+                updateStatus('error', 'Connection Failed');
+            }
+        });
+
+        copyLinkBtn.addEventListener('click', async function() {
+            try {
+                await navigator.clipboard.writeText(sessionLinkInput.value);
+                showToast('Copied!', 'success');
+            } catch (e) {
+                sessionLinkInput.select();
+                showToast('Press Ctrl+C to copy.', 'info');
+            }
+        });
+
+        sendFileBtn.addEventListener('click', function() {
+            if (!selectedFile || !dataChannel || dataChannel.readyState !== 'open') {
+                showError('Connection not ready. Wait for the receiver.');
+                return;
+            }
+            startFileSend();
+        });
+
+        cancelTransferBtn.addEventListener('click', function() {
+            transferActive = false;
+            sendQueuePaused = true;
+            cleanupConnection();
+            resetTransferState();
+            resetUI();
+            showToast('Transfer cancelled.', 'info');
+        });
+
+        dismissErrorBtn.addEventListener('click', hideError);
+
+        // --- Receiver Mode: Check URL for session ---
+        async function checkReceiverMode() {
+            var params = new URLSearchParams(window.location.search);
+            var sid = params.get('session');
+            if (!sid) return;
+
+            sessionId = sid;
+            isReceiver = true;
+            isSender = false;
+
+            resetTransferState();
+            cleanupConnection();
+
+            senderView.classList.add('hidden');
+            transferView.classList.remove('hidden');
+            transferTitle.textContent = 'Connecting';
+            transferSubtitle.textContent = 'Establishing secure tunnel...';
+            updateStatus('connecting', 'Connecting to sender...');
+            sessionLinkBox.classList.add('hidden');
+            sendFileBtn.classList.add('hidden');
+            progressSection.classList.add('hidden');
+            transferFileInfo.classList.add('hidden');
+            hideError();
+
+            try {
+                await connectSignaling(sid, false);
+                createPeerConnection();
+                updateStatus('connecting', 'Waiting for sender...');
+                transferSubtitle.textContent = 'Waiting for sender...';
+            } catch (e) {
+                console.error('Failed to connect as receiver:', e);
+                showError('Failed to connect. Is the server running and link valid?');
+                updateStatus('error', 'Connection Failed');
+            }
+        }
+
+        // --- Keyboard Shortcuts ---
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                if (transferActive) {
+                    cancelTransferBtn.click();
+                }
+            }
+        });
+
+        // --- Initialize ---
+        function init() {
+            resetUI();
+            checkReceiverMode();
+        }
+
+        window.addEventListener('beforeunload', function() {
+            cleanupConnection();
+        });
+
+        init();
+
+        console.log('GhostShare ready');
+        console.log('  Server:', SIGNALING_SERVER_URL);
+        console.log('  Chunk:', formatFileSize(CHUNK_SIZE));
+        console.log('  Buffer threshold:', formatFileSize(BUFFERED_AMOUNT_LOW_THRESHOLD));
+    })();
+    </script>
+</body>
+</html>
