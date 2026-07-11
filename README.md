@@ -1,75 +1,100 @@
 # GhostShare
 
-Browser-to-browser file transfers over your local network. No cloud, no accounts, no file data on any server. WebRTC handles the encryption.
+A high-performance, 100% serverless, local-first peer-to-peer (P2P) file sharing web utility. Streams files up to 1GB directly between two browsers securely over your local network (LAN) without ever touching a cloud storage backend or third-party server.
 
-## Setup
+## Quick Start
+
+Fire up the entire interface and signaling hub with a single command sequence:
 
 ```bash
-git clone https://github.com/your-org/ghostshare.git
+git clone https://github.com/ghostysrc/ghostshare.git
 cd ghostshare
 npm install
 npm start
-```
-
-You'll see:
 
 ```
+
+**Upon startup, you will see exactly:**
+
+```text
 👻 GhostShare is active on your private network!
 Local Interface: http://localhost:9001
 Network Access:   http://192.168.1.42:9001
+
 ```
 
-Open that URL in two browser tabs to test. Other devices on your LAN can use `http://<your-local-ip>:9001`.
+Open that URL in two browser tabs to test. Other devices on your LAN can use the Network Access URL directly to begin secure, zero-cloud transfers instantly.
 
-## How it works
+---
 
-The server does two things: serves the HTML page and relays WebSocket signaling messages between peers. That's it. No database, no disk writes, no file logging.
+## Privacy & Architecture
 
-The actual file transfer happens directly between browsers over a WebRTC data channel. DTLS encryption is mandatory in WebRTC — there is no plaintext mode. File chunks stream over an SCTP channel with ordered, reliable delivery.
+* **Zero Cloud Storage:** The integrated Node.js script performs a dual role: it delivers the static frontend interface over HTTP and handles the initial WebRTC WebSocket signaling handshake. No file data, metadata, filenames, or sizes ever touch the server.
+* **Mandatory Encryption:** File transfers occur directly browser-to-browser via a WebRTC `RTCDataChannel`. Communication is strictly secured using DTLS encryption over an SCTP transport layer configured for ordered, reliable chunk delivery. There is no plaintext mode.
+* **Crypto-Secured Sessions:** Room sessions utilize cryptographically random 12-character identifiers generated via the native browser `crypto.getRandomValues()` API.
+* **Volatile Memory:** On the same LAN, browsers connect directly via host candidates (local IP). The signaling server retains connection states strictly in-memory. Once both peers disconnect, the lobby instance is permanently wiped from memory.
 
-On the same LAN, browsers connect via host candidates (direct local IP). The signaling server never sees file names, sizes, or contents. Session IDs are 12 random characters generated with `crypto.getRandomValues()`. When both peers disconnect, the session is wiped from memory.
+---
+
+## High-Performance Stream Management
+
+GhostShare is architected to handle large files up to 1GB without freezing the UI or risking browser tab memory crashes:
+
+* **Asynchronous Chunking:** Files are sliced sequentially into fixed chunks using the HTML5 `FileReader` API.
+* **Active Backpressure Control:** To prevent memory overflows, the engine dynamically monitors `dataChannel.bufferedAmount`. If the buffer exceeds the safety threshold, the chunking loop instantly pauses and yields execution, automatically resuming via the `onbufferedamountlow` event handler once the queue drops below the safety threshold.
+
+---
 
 ## Usage
 
-**Sending:** Drop a file (up to 1 GB), click Generate Link, share the link.
+* **Sending:** Drop a file (up to 1 GB), click Generate Link, and share the generated link.
+* **Receiving:** Open the shared link. The file downloads automatically directly into the browser storage when the transfer completes.
 
-**Receiving:** Open the link. The file downloads automatically when the transfer completes.
+---
 
-## Settings
+## Features & Configuration
 
-Click the gear icon in the top-right corner to open the settings panel. You can change:
+Click the gear icon in the top-right corner to open the settings panel. All settings are automatically saved to `localStorage` and persist across browser sessions:
 
-- **Light theme** — toggle between dark and light appearance
-- **Accent color** — amber, blue, green, purple, or rose
-- **Font** — Inter, system default, or JetBrains Mono
-- **Animations** — disable all transitions and effects
-- **Background pattern** — toggle the dot grid overlay
-- **Compact mode** — reduce padding and spacing
-- **Chunk size** — 8 KB to 64 KB (larger = faster on fast networks)
-- **Buffer threshold** — backpressure pause point (32 KB to 256 KB)
-- **STUN servers** — comma-separated list of your own STUN/TURN servers
+* **Light theme:** Toggle between dark and light appearance.
+* **Accent color:** Personalize the theme using amber, blue, green, purple, or rose tones.
+* **Font:** Select between Inter, system default, or JetBrains Mono.
+* **Animations:** Disable all transitions and effects for a lightweight experience.
+* **Background pattern:** Toggle the dot grid overlay layout.
+* **Compact mode:** Reduce padding and spacing across the interface dashboard.
+* **Chunk size:** Fine-tune streams from 8 KB to 64 KB (larger sizes equal faster speeds on robust local networks).
+* **Buffer threshold:** Adjust the backpressure pause point threshold between 32 KB and 256 KB.
+* **STUN servers:** Provide a custom comma-separated list of your own STUN/TURN targets.
+* **Transfer Logs:** A collapsible runtime panel tracking every file sent or received during the active session, retaining timestamp, filename, size, and peak transfer performance records.
+* **Network Resilience:** Equipped with a 10-second re-negotiation grace window. If a peer suffers a transient local network drop, the stream queues auto-pause and attempt reconnection before failing out.
 
-All settings are saved to localStorage and persist across sessions.
+---
 
 ## Running your own STUN/TURN
 
-For fully offline networks, replace the public Google STUN servers with your own in the settings panel. The field accepts a comma-separated list like:
+For fully offline or completely air-gapped networks, replace the public Google STUN servers with your own inside the configuration panel. The field accepts a comma-separated list format like:
 
-```
+```text
 stun:stun.your-network.local:3478, turn:turn.your-network.local:3478
+
 ```
 
-A TURN server with credentials uses the format `turn:host:port?username=user&credential=pass`.
+A TURN server requiring explicit credentials uses the following query format:
+`turn:host:port?username=user&credential=pass`
+
+---
 
 ## Remote access
 
-GhostShare works behind Tailscale, ZeroTier, WireGuard, or on a private VPS. Put a reverse proxy (Caddy, Nginx) in front that handles TLS and forwards WebSocket upgrades.
+GhostShare works flawlessly behind virtual private networks such as Tailscale, ZeroTier, and WireGuard, or deployed on a private VPS. For remote use cases, put a reverse proxy (like Caddy or Nginx) in front of the application to handle TLS termination and cleanly forward WebSocket upgrade headers.
+
+---
 
 ## Requirements
 
-- Node.js 16 or newer
-- A modern browser (Chrome 80+, Firefox 80+, Edge 80+, Safari 15+)
+* **Runtime:** Node.js 16.x or newer
+* **Environment:** Any modern WebRTC-compliant browser (Chrome 80+, Firefox 80+, Edge 80+, Safari 15+)
 
 ## License
 
-MIT
+Distributed under the MIT License. See `LICENSE` for details.
