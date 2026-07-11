@@ -1,201 +1,75 @@
 # GhostShare
 
-**Local-first, private browser-to-browser file transfers over your local network.**
+Browser-to-browser file transfers over your local network. No cloud, no accounts, no file data on any server. WebRTC handles the encryption.
 
-GhostShare is a self-hosted, open-source utility that lets you send files directly between browsers — no cloud uploads, no accounts, and no file data ever touches a server. Powered by WebRTC, all transfers are encrypted end-to-end and stream peer-to-peer.
-
----
-
-## Why GhostShare?
-
-| | GhostShare | Cloud Services |
-|---|---|---|
-| **File storage** | None — direct P2P | Stored on remote servers |
-| **Encryption** | WebRTC DTLS (mandatory) | Varies; often key-escrowed |
-| **Network** | LAN / Tailscale / private VPS | Internet-dependent |
-| **Tracking** | Zero analytics or telemetry | Usage data often collected |
-| **Dependencies** | Node.js + a browser | Complex infrastructure |
-
----
-
-## Quick Start
+## Setup
 
 ```bash
-# Clone the repository
 git clone https://github.com/your-org/ghostshare.git
 cd ghostshare
-
-# Install dependencies
 npm install
-
-# Start the server
 npm start
 ```
 
-Output:
+You'll see:
 
 ```
-GhostShare is active on your private network!
-Interface & Signal Hub: http://localhost:9001
+👻 GhostShare is active on your private network!
+Local Interface: http://localhost:9001
+Network Access:   http://192.168.1.42:9001
 ```
 
-Open **http://localhost:9001** (or `http://<your-local-ip>:9001` from other devices on the same LAN) in two browser tabs to test.
+Open that URL in two browser tabs to test. Other devices on your LAN can use `http://<your-local-ip>:9001`.
 
----
+## How it works
 
-## How It Works
+The server does two things: serves the HTML page and relays WebSocket signaling messages between peers. That's it. No database, no disk writes, no file logging.
 
-### Architecture Overview
+The actual file transfer happens directly between browsers over a WebRTC data channel. DTLS encryption is mandatory in WebRTC — there is no plaintext mode. File chunks stream over an SCTP channel with ordered, reliable delivery.
 
-```
-┌─────────────┐                         ┌─────────────┐
-│  Browser A  │◄────── WebRTC ─────────►│  Browser B  │
-│  (Sender)   │    encrypted file data   │  (Receiver) │
-└──────┬──────┘                         └──────┬──────┘
-       │                                       │
-       │  WebSocket signaling                  │
-       │  (offer / answer / ICE)               │
-       │                                       │
-       ▼                                       ▼
-┌─────────────────────────────────────────────────────┐
-│                    GhostShare Server                 │
-│  ┌───────────────────────────────────────────────┐  │
-│  │  HTTP (port 9001) — serves index.html          │  │
-│  │  WebSocket — relays signaling messages only    │  │
-│  │  ❌ No file data passes through this server    │  │
-│  │  ❌ No logging of file metadata                │  │
-│  │  ❌ No persistent storage                      │  │
-│  └───────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────┘
-```
-
-### 1. Browser-to-Browser Encrypted Lanes (WebRTC)
-
-Once the signaling handshake completes, GhostShare establishes a **direct peer-to-peer WebRTC connection** between the two browsers. WebRTC uses **DTLS** (Datagram Transport Layer Security) for transport encryption — the same protocol that secures WebSocket `wss://` connections. The file chunks are streamed over an **SCTP data channel** (ordered, reliable delivery) with **no server in the data path**.
-
-- ICE (Interactive Connectivity Establishment) handles NAT traversal via public STUN servers.
-- On the same LAN, browsers typically connect via host candidates (direct local IP), keeping traffic entirely on your local network.
-
-### 2. The Node.js Signaling Hub
-
-The `server.js` script does exactly three things:
-
-1. **Serves the web interface** (`index.html`) over HTTP on port 9001.
-2. **Relays WebSocket signaling messages** (offer, answer, ICE candidates) between two peers registered to the same session ID.
-3. **Cleans up** idle sessions and dead connections.
-
-The server maintains a minimal in-memory session map — **no database, no disk writes, no file logging**.
-
-### 3. Zero File Tracking
-
-- The signaling server never sees file names, sizes, contents, or MIME types in its relayed messages (those travel over the direct WebRTC data channel).
-- Session IDs are random 12-character strings generated client-side with `crypto.getRandomValues()`.
-- When both peers disconnect, the session is purged from memory immediately.
-- **No cookies, no analytics scripts, no external CDN calls** (fonts are self-hosted via Google Fonts CSS which you can optionally bundle).
-
----
+On the same LAN, browsers connect via host candidates (direct local IP). The signaling server never sees file names, sizes, or contents. Session IDs are 12 random characters generated with `crypto.getRandomValues()`. When both peers disconnect, the session is wiped from memory.
 
 ## Usage
 
-### Sending a File
+**Sending:** Drop a file (up to 1 GB), click Generate Link, share the link.
 
-1. Open GhostShare in your browser.
-2. Drop a file (up to 1 GB) onto the drop zone or click to browse.
-3. Click **Generate Link** — a session link is automatically copied to your clipboard.
-4. Share the link with the receiver (email, chat, QR code, spoken aloud).
+**Receiving:** Open the link. The file downloads automatically when the transfer completes.
 
-### Receiving a File
+## Settings
 
-1. Open the link the sender shared with you.
-2. GhostShare automatically joins the session and establishes a secure WebRTC tunnel.
-3. Once connected, the sender clicks **Send File** and the transfer begins immediately.
-4. The file downloads automatically when complete.
+Click the gear icon in the top-right corner to open the settings panel. You can change:
 
-### Across Devices on the Same LAN
+- **Light theme** — toggle between dark and light appearance
+- **Accent color** — amber, blue, green, purple, or rose
+- **Font** — Inter, system default, or JetBrains Mono
+- **Animations** — disable all transitions and effects
+- **Background pattern** — toggle the dot grid overlay
+- **Compact mode** — reduce padding and spacing
+- **Chunk size** — 8 KB to 64 KB (larger = faster on fast networks)
+- **Buffer threshold** — backpressure pause point (32 KB to 256 KB)
+- **STUN servers** — comma-separated list of your own STUN/TURN servers
 
-Instead of `http://localhost:9001`, other devices on your local network can use your computer's local IP address:
+All settings are saved to localStorage and persist across sessions.
+
+## Running your own STUN/TURN
+
+For fully offline networks, replace the public Google STUN servers with your own in the settings panel. The field accepts a comma-separated list like:
 
 ```
-http://192.168.1.42:9001
+stun:stun.your-network.local:3478, turn:turn.your-network.local:3478
 ```
 
-The WebSocket signaling URL is calculated dynamically from `window.location`, so it works automatically with any IP or hostname.
+A TURN server with credentials uses the format `turn:host:port?username=user&credential=pass`.
 
-### Remote / Self-Hosted
+## Remote access
 
-GhostShare can run behind **Tailscale** (recommended), **ZeroTier**, **WireGuard**, or on a private VPS with a reverse proxy (e.g., Caddy, Nginx) that handles TLS termination and WebSocket upgrade forwarding.
-
----
-
-## Security & Privacy
-
-| Concern | How GhostShare Addresses It |
-|---|---|
-| **File confidentiality** | WebRTC DTLS encryption — files never leave the browser-to-browser tunnel |
-| **Server compromise** | Server only sees encrypted signaling metadata; zero persistence |
-| **NAT/firewall traversal** | Public STUN servers assist hole-punching; consider running your own STUN/TURN for air-gapped networks |
-| **Link interception** | Session links contain only a random ID; share them via secure channels |
-| **Browser sandbox** | All JavaScript runs client-side; no `eval()`, no dynamic code loading |
-
-### Running Your Own STUN/TURN Server
-
-For fully private networks without internet access, replace the public Google STUN servers in `index.html` with your own:
-
-```js
-const ICE_SERVERS = {
-    iceServers: [
-        { urls: 'stun:stun.your-network.local:3478' },
-        { urls: 'turn:turn.your-network.local:3478', username: 'user', credential: 'pass' }
-    ]
-};
-```
-
----
+GhostShare works behind Tailscale, ZeroTier, WireGuard, or on a private VPS. Put a reverse proxy (Caddy, Nginx) in front that handles TLS and forwards WebSocket upgrades.
 
 ## Requirements
 
-- **Node.js** ≥ 16.x
-- **Modern browser** with WebRTC support (Chrome 80+, Firefox 80+, Edge 80+, Safari 15+)
-- **No** Docker, database, or cloud account needed
-
----
-
-## Development
-
-```bash
-# Start with a custom port
-npm start -- 8080
-
-# Or directly:
-node server.js 8080
-```
-
-All core logic lives in two files:
-- `server.js` — HTTP server + WebSocket signaling hub (~230 lines)
-- `index.html` — Full SPA with WebRTC data channel management (~1,340 lines)
-
----
-
-## FAQ
-
-**Q: Can I transfer files between devices that aren't on the same LAN?**
-A: Yes, if both can reach each other via a common IP (e.g., using Tailscale). GhostShare uses public STUN servers by default, which may work for simple NATs but will fail on symmetric NATs without TURN. For guaranteed connectivity, run your own STUN/TURN server.
-
-**Q: What's the maximum file size?**
-A: The UI enforces a 1 GB limit. WebRTC data channels support streaming arbitrarily large files, but browser memory constraints apply.
-
-**Q: Does this work offline (no internet at all)?**
-A: You need the Google Fonts CSS loaded once (cached). After that, if both devices are on the same LAN and you configure a local STUN server, transfers will work without internet access.
-
-**Q: Is the connection really encrypted?**
-A: Yes. WebRTC mandates DTLS-SRTP for all data channels. There is no "plaintext" mode in the WebRTC specification.
-
----
+- Node.js 16 or newer
+- A modern browser (Chrome 80+, Firefox 80+, Edge 80+, Safari 15+)
 
 ## License
 
-MIT © GhostShare Contributors
-
----
-
-*GhostShare — Your files, your network, your control.*
+MIT

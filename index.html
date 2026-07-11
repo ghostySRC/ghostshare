@@ -52,18 +52,17 @@
         }
     </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
-        * {
-            font-family: 'Inter', system-ui, sans-serif;
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fira+Sans:wght@300;400;500;600;700&family=Source+Serif+4:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&family=Atkinson+Hyperlegible:wght@400;700&family=Geist+Mono:wght@400;500;600&family=Geologica:wght@300;400;500;600;700&display=swap');
 
         body {
             background: #0c0c0c;
             min-height: 100vh;
         }
 
-        /* Subtle dot-grid pattern */
+        body.light {
+            background: #f5f5f5;
+        }
+
         body::before {
             content: '';
             position: fixed;
@@ -74,23 +73,28 @@
             background-size: 24px 24px;
         }
 
+        body.light::before {
+            background-image: radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px);
+        }
+
+        body.no-pattern::before { display: none; }
+
         .card {
             background: #141414;
             border: 1px solid #2a2a2a;
             transition: border-color 0.25s ease;
         }
 
-        .card:hover {
-            border-color: #3a3a3a;
+        body.light .card {
+            background: #ffffff;
+            border-color: #e0e0e0;
         }
 
-        .card-accent {
-            border-color: #3d3000;
-        }
+        .card:hover { border-color: #3a3a3a; }
+        body.light .card:hover { border-color: #c0c0c0; }
 
-        .card-accent:hover {
-            border-color: #5a4200;
-        }
+        .card-accent { border-color: #3d3000; }
+        .card-accent:hover { border-color: #5a4200; }
 
         .drop-zone {
             border: 1px dashed #2a2a2a;
@@ -98,15 +102,27 @@
             transition: all 0.25s ease;
         }
 
+        body.light .drop-zone {
+            border-color: #d0d0d0;
+            background: #fafafa;
+        }
+
         .drop-zone:hover,
         .drop-zone.drag-over {
             border-color: #f59e0b;
             background: #1a1400;
+            transform: scale(1.02);
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
         }
 
-        .progress-track {
-            background: #1a1a1a;
+        body.light .drop-zone:hover,
+        body.light .drop-zone.drag-over {
+            background: #fff8e1;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15);
         }
+
+        .progress-track { background: #1a1a1a; }
+        body.light .progress-track { background: #e8e8e8; }
 
         .progress-fill {
             background: #f59e0b;
@@ -120,17 +136,16 @@
             transition: all 0.2s ease;
         }
 
-        .btn-primary:hover:not(:disabled) {
-            background: #fbbf24;
-        }
-
-        .btn-primary:active:not(:disabled) {
-            background: #d97706;
-        }
-
+        .btn-primary:hover:not(:disabled) { background: #fbbf24; }
+        .btn-primary:active:not(:disabled) { background: #d97706; }
         .btn-primary:disabled {
             background: #2a2a2a;
             color: #555;
+        }
+
+        body.light .btn-primary:disabled {
+            background: #d0d0d0;
+            color: #999;
         }
 
         .btn-ghost {
@@ -140,16 +155,32 @@
             transition: all 0.2s ease;
         }
 
+        body.light .btn-ghost {
+            border-color: #d0d0d0;
+            color: #666;
+        }
+
         .btn-ghost:hover {
             background: #1a1a1a;
             border-color: #444;
             color: #ddd;
         }
 
+        body.light .btn-ghost:hover {
+            background: #f0f0f0;
+            border-color: #aaa;
+            color: #333;
+        }
+
         .btn-ghost-danger:hover {
             border-color: #5c2020;
             color: #ef4444;
             background: #1a1010;
+        }
+
+        body.light .btn-ghost-danger:hover {
+            background: #fff0f0;
+            border-color: #e0b0b0;
         }
 
         .status-dot {
@@ -164,6 +195,7 @@
         .status-dot.connected { background: #22c55e; }
         .status-dot.error { background: #ef4444; }
         .status-dot.idle { background: #444; }
+        body.light .status-dot.idle { background: #ccc; }
 
         .toast {
             animation: toastIn 0.25s ease-out, toastOut 0.2s ease-in 3.5s forwards;
@@ -191,6 +223,12 @@
             color: #888;
         }
 
+        body.light .kbd {
+            background: #e8e8e8;
+            border-color: #ccc;
+            color: #555;
+        }
+
         ::selection {
             background: #f59e0b;
             color: #0c0c0c;
@@ -205,17 +243,379 @@
             outline: none;
             border-color: #f59e0b !important;
         }
+
+        body.light { color: #333; }
+        body.light .text-white { color: #1a1a1a !important; }
+        body.light .text-gray-300 { color: #444 !important; }
+        body.light .text-gray-500 { color: #666 !important; }
+        body.light .text-gray-600 { color: #888 !important; }
+        body.light .text-gray-700 { color: #aaa !important; }
+        body.light .text-gray-800 { color: #bbb !important; }
+        body.light .text-accent-500 { color: var(--accent-500) !important; }
+        body.light .text-red-400 { color: var(--accent-400) !important; }
+        body.light .text-red-500 { color: var(--accent-500) !important; }
+        body.light .text-red-600 { color: var(--accent-600) !important; }
+        body.light .text-red-700 { color: var(--accent-700) !important; }
+        body.light .text-green-400 { color: #4ade80 !important; }
+        body.light .text-yellow-400 { color: #fbbf24 !important; }
+        body.light .bg-\[\#1a1010\] { background: #fff0f0 !important; }
+        body.light .bg-\[\#0f1a0f\] { background: #f0fff0 !important; }
+        body.light .bg-\[\#1a140f\] { background: #fffdf0 !important; }
+        body.light .bg-\[\#141414\] { background: #fafafa !important; }
+        body.light .bg-\[\#0f0f0f\] { background: #f5f5f5 !important; }
+        body.light .border-\[\#5c2020\] { border-color: #fecaca !important; }
+        body.light .border-\[\#1a3a1a\] { border-color: #bbf7d0 !important; }
+        body.light .border-\[\#3a2a1a\] { border-color: #fef3c7 !important; }
+        body.light .border-\[\#2a2a2a\] { border-color: #d0d0d0 !important; }
+        body.light .border-\[\#3d3000\] { border-color: #fde68a !important; }
+
+        .no-anim, .no-anim *, .no-anim *::before, .no-anim *::after {
+            animation-duration: 0s !important;
+            animation-delay: 0s !important;
+            transition-duration: 0s !important;
+            transition-delay: 0s !important;
+        }
+
+        .settings-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        .settings-overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        body.light .settings-overlay { background: rgba(0,0,0,0.3); }
+
+        .settings-panel {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 440px;
+            max-height: 85vh;
+            overflow-y: auto;
+            padding: 24px;
+            transform: translateY(24px) scale(0.97);
+            opacity: 0;
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease;
+        }
+
+        .settings-overlay.open .settings-panel {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+
+        body.light .settings-panel {
+            background: #ffffff;
+            border-color: #d0d0d0;
+        }
+
+        .settings-panel h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 20px;
+        }
+
+        body.light .settings-panel h2 { color: #1a1a1a; }
+
+        .setting-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #222;
+        }
+
+        body.light .setting-row { border-bottom-color: #eee; }
+
+        .setting-row:last-child { border-bottom: none; }
+
+        .setting-label {
+            font-size: 13px;
+            color: #ccc;
+        }
+
+        body.light .setting-label { color: #444; }
+
+        .setting-desc {
+            font-size: 10px;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        body.light .setting-desc { color: #999; }
+
+        .toggle-switch {
+            position: relative;
+            width: 40px;
+            height: 22px;
+            flex-shrink: 0;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background: #333;
+            border-radius: 22px;
+            transition: background 0.2s;
+        }
+
+        body.light .toggle-slider { background: #ccc; }
+
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.2s;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: #f59e0b;
+        }
+
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(18px);
+        }
+
+        .setting-select {
+            background: #0f0f0f;
+            border: 1px solid #2a2a2a;
+            color: #ccc;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        body.light .setting-select {
+            background: #f5f5f5;
+            border-color: #d0d0d0;
+            color: #333;
+        }
+
+        .setting-select:focus { outline: none; border-color: #f59e0b; }
+
+        .color-swatch {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid #333;
+            cursor: pointer;
+            display: inline-block;
+            margin-left: 6px;
+            transition: transform 0.15s;
+        }
+
+        .color-swatch:hover { transform: scale(1.15); }
+        .color-swatch.active { border-color: #fff; box-shadow: 0 0 0 2px #f59e0b; }
+        body.light .color-swatch.active { border-color: #333; }
+
+        .settings-gear {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            z-index: 50;
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            background: transparent;
+            border: 1px solid #2a2a2a;
+            color: #666;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        body.light .settings-gear {
+            border-color: #d0d0d0;
+            color: #999;
+        }
+
+        .settings-gear:hover {
+            background: #1a1a1a;
+            border-color: #444;
+            color: #ddd;
+        }
+
+        body.light .settings-gear:hover {
+            background: #f0f0f0;
+            border-color: #aaa;
+            color: #333;
+        }
+
+        .settings-gear svg { width: 16px; height: 16px; }
+
+        .compact .card { padding: 16px !important; }
+        .compact header { margin-bottom: 16px !important; }
+        .compact footer { margin-top: 16px !important; }
+        .compact .drop-zone { padding: 16px !important; }
+        .compact h1 { font-size: 1.5rem !important; }
+        .compact .setting-row { padding: 6px 0 !important; }
     </style>
 </head>
 <body class="text-gray-300 antialiased">
 
-    <!-- Toast Container -->
     <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
-    <!-- Main Container -->
+    <button id="settingsGear" class="settings-gear" title="Settings">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+    </button>
+
+    <div id="settingsOverlay" class="settings-overlay hidden">
+        <div class="settings-panel">
+            <div class="flex items-center justify-between mb-5">
+                <h2 class="!mb-0">Settings</h2>
+                <button id="closeSettingsBtn" class="text-gray-600 hover:text-gray-300 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <div class="setting-row">
+                <div>
+                    <div class="setting-label">Light theme</div>
+                    <div class="setting-desc">Switch between dark and light appearance</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="settingLightTheme">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-row">
+                <div>
+                    <div class="setting-label">Accent color</div>
+                    <div class="setting-desc">Pick your highlight color</div>
+                </div>
+                <div class="flex items-center gap-1">
+                    <span class="color-swatch" data-color="rose" style="background:#f43f5e" title="Rose"></span>
+                    <span class="color-swatch active" data-color="amber" style="background:#f59e0b" title="Amber"></span>
+                    <span class="color-swatch" data-color="blue" style="background:#3b82f6" title="Blue"></span>
+                    <span class="color-swatch" data-color="green" style="background:#22c55e" title="Green"></span>
+                    <span class="color-swatch" data-color="purple" style="background:#a855f7" title="Purple"></span>
+                </div>
+            </div>
+
+            <div class="setting-row">
+                <div>
+                    <div class="setting-label">Font</div>
+                    <div class="setting-desc">UI typeface</div>
+                </div>
+                <select id="settingFont" class="setting-select">
+                    <option value="inter">Inter</option>
+                    <option value="system">System default</option>
+                    <option value="fira">Fira Sans</option>
+                    <option value="ibm">IBM Plex Sans</option>
+                    <option value="dm">DM Sans</option>
+                    <option value="space">Space Grotesk</option>
+                    <option value="geologica">Geologica</option>
+                    <option value="source">Source Serif 4</option>
+                    <option value="atkinson">Atkinson Hyperlegible</option>
+                    <option value="mono">JetBrains Mono</option>
+                    <option value="geist-mono">Geist Mono</option>
+                </select>
+            </div>
+
+            <div class="setting-row">
+                <div>
+                    <div class="setting-label">Animations</div>
+                    <div class="setting-desc">Enable transitions and effects</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="settingAnimations" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-row">
+                <div>
+                    <div class="setting-label">Background pattern</div>
+                    <div class="setting-desc">Dot grid overlay</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="settingPattern" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-row">
+                <div>
+                    <div class="setting-label">Compact mode</div>
+                    <div class="setting-desc">Reduce padding and spacing</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="settingCompact">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-row">
+                <div>
+                    <div class="setting-label">Chunk size</div>
+                    <div class="setting-desc">Larger = faster on fast networks, smaller = smoother on slow ones</div>
+                </div>
+                <select id="settingChunkSize" class="setting-select">
+                    <option value="8192">8 KB</option>
+                    <option value="16384" selected>16 KB</option>
+                    <option value="32768">32 KB</option>
+                    <option value="65536">64 KB</option>
+                </select>
+            </div>
+
+            <div class="setting-row">
+                <div>
+                    <div class="setting-label">Buffer threshold</div>
+                    <div class="setting-desc">Backpressure pause point</div>
+                </div>
+                <select id="settingBuffer" class="setting-select">
+                    <option value="32768">32 KB</option>
+                    <option value="65536" selected>64 KB</option>
+                    <option value="131072">128 KB</option>
+                    <option value="262144">256 KB</option>
+                </select>
+            </div>
+
+            <div class="setting-row">
+                <div>
+                    <div class="setting-label">STUN servers</div>
+                    <div class="setting-desc">Comma-separated list of stun:host:port</div>
+                </div>
+            </div>
+            <input type="text" id="settingStunServers" class="w-full bg-[#0f0f0f] border border-[#2a2a2a] rounded-md px-3 py-2 text-xs text-gray-400 mono" placeholder="stun:stun.l.google.com:19302, stun:stun1.l.google.com:19302" style="margin-top:-6px;margin-bottom:8px;" />
+
+            <button id="resetSettingsBtn" class="btn-ghost w-full py-2 rounded-md text-xs mt-4">Reset to defaults</button>
+        </div>
+    </div>
+
     <div class="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 py-8">
 
-        <!-- Header -->
         <header class="text-center mb-10 animate-fade-in">
             <div class="flex items-center justify-center gap-2 mb-3">
                 <span class="mono text-accent-500 text-sm font-medium tracking-widest uppercase opacity-60">P2P</span>
@@ -229,17 +629,14 @@
             </p>
         </header>
 
-        <!-- Main Card -->
         <div id="mainCard" class="card rounded-lg p-8 w-full max-w-md animate-slide-up">
 
-            <!-- Sender View (Default) -->
             <div id="senderView">
                 <div class="mb-6">
                     <h2 class="text-base font-semibold text-white mb-1">Send a file</h2>
                     <p class="text-gray-600 text-xs">Select a file to generate a one-time transfer link.</p>
                 </div>
 
-                <!-- Drop Zone -->
                 <div id="dropZone" class="drop-zone rounded-md p-8 text-center cursor-pointer mb-6">
                     <input type="file" id="fileInput" class="hidden" />
                     <div id="dropZoneContent">
@@ -259,7 +656,6 @@
                     </div>
                 </div>
 
-                <!-- Generate Link Button -->
                 <button id="generateLinkBtn" disabled class="btn-primary w-full py-2.5 rounded-md text-sm disabled:cursor-not-allowed">
                     <span id="generateLinkText">Generate Link</span>
                     <span id="generateLinkSpinner" class="hidden inline-flex items-center gap-2">
@@ -269,20 +665,17 @@
                 </button>
             </div>
 
-            <!-- Transfer View (Hidden initially) -->
             <div id="transferView" class="hidden">
                 <div class="mb-6">
                     <h2 class="text-base font-semibold text-white mb-1" id="transferTitle">Ready</h2>
                     <p class="text-gray-600 text-xs" id="transferSubtitle">Waiting for receiver&hellip;</p>
                 </div>
 
-                <!-- Connection Status -->
                 <div class="card rounded-md px-4 py-3 mb-4 flex items-center gap-3">
                     <span class="status-dot connecting" id="statusDot"></span>
                     <span id="statusText" class="text-xs text-gray-500">Initializing&hellip;</span>
                 </div>
 
-                <!-- File Info -->
                 <div id="transferFileInfo" class="card rounded-md px-4 py-3 mb-4 hidden">
                     <div class="flex items-center gap-3">
                         <svg class="w-6 h-6 text-accent-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -295,7 +688,6 @@
                     </div>
                 </div>
 
-                <!-- Progress Section -->
                 <div id="progressSection" class="hidden mb-5">
                     <div class="flex justify-between text-xs mb-2">
                         <span id="progressLabel" class="text-gray-500">Transferring&hellip;</span>
@@ -310,7 +702,6 @@
                     </div>
                 </div>
 
-                <!-- Session Link (Sender) -->
                 <div id="sessionLinkBox" class="hidden mb-4">
                     <label class="block text-[10px] text-gray-600 mb-1.5 uppercase tracking-wider">Share this link</label>
                     <div class="flex gap-2">
@@ -321,7 +712,6 @@
                     </div>
                 </div>
 
-                <!-- Action Buttons -->
                 <div class="flex gap-3">
                     <button id="cancelTransferBtn" class="btn-ghost btn-ghost-danger flex-1 py-2.5 rounded-md text-xs font-medium">
                         Cancel
@@ -332,7 +722,6 @@
                 </div>
             </div>
 
-            <!-- Error Banner -->
             <div id="errorBanner" class="hidden mt-4 p-4 bg-[#1a1010] border border-[#5c2020] rounded-md">
                 <div class="flex items-start gap-3">
                     <svg class="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -349,122 +738,271 @@
             </div>
         </div>
 
-        <!-- Footer -->
         <footer class="mt-10 text-center text-gray-800 text-[10px] animate-fade-in">
             <span>Files stream directly between browsers &middot; WebRTC</span>
             <br>
             <span class="mono text-gray-800">Esc</span> <span class="text-gray-800">to cancel transfer</span>
+            <br>
+            <a href="https://ko-fi.com/ghostyy69" target="_blank" rel="noopener noreferrer" class="text-accent-500 hover:underline mt-2 inline-block">
+                Support GhostShare on Ko-fi
+            </a>
         </footer>
     </div>
 
-    <script>
-    // ============================================================
-    // GhostShare — P2P File Transfer Application
-    // ============================================================
+    <div class="relative z-10 w-full max-w-md mx-auto px-4 pb-8" id="transferLogPanel">
+        <div class="card rounded-lg p-4" id="transferLogCard">
+            <button id="transferLogToggle" class="w-full flex items-center justify-between text-xs font-semibold text-gray-500 hover:text-gray-300 transition-colors">
+                <span>Transfer Logs</span>
+                <svg id="logChevron" class="w-3.5 h-3.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="transferLogContent" class="hidden mt-3">
+                <div id="transferLogList" class="space-y-1.5 max-h-48 overflow-y-auto">
+                    <p id="transferLogEmpty" class="text-gray-700 text-[10px] text-center py-3">No transfers yet. Send or receive a file to see it here.</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
+    <script>
     (function() {
         'use strict';
 
-        // --- Configuration ---
-        const CHUNK_SIZE = 16384; // 16KB
-        const BUFFERED_AMOUNT_LOW_THRESHOLD = 65536; // 64KB
-        const SIGNALING_SERVER_URL = window.location.protocol.replace('http', 'ws') + '//' + window.location.host;
-        const ICE_SERVERS = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
-            ]
+        var defaults = {
+            lightTheme: false,
+            accentColor: 'rose',
+            font: 'inter',
+            animations: true,
+            pattern: true,
+            compact: false,
+            chunkSize: 16384,
+            bufferThreshold: 65536,
+            stunServers: 'stun:stun.l.google.com:19302, stun:stun1.l.google.com:19302'
         };
 
-        // --- State ---
-        let selectedFile = null;
-        let sessionId = null;
-        let isSender = false;
-        let isReceiver = false;
-        let peerConnection = null;
-        let dataChannel = null;
-        let signalingSocket = null;
-        let receivedChunks = [];
-        let receivedFileMetadata = null;
-        let receivedBytes = 0;
-        let transferStartTime = null;
-        let lastProgressUpdate = 0;
-        let bytesSinceLastUpdate = 0;
-        let transferActive = false;
-        let sendQueuePaused = false;
-        let currentChunkIndex = 0;
-        let totalChunks = 0;
-        let fileReader = null;
-        let connectionTimeout = null;
-        let signalingReady = false;
+        var settings = {};
+        Object.keys(defaults).forEach(function(k) { settings[k] = defaults[k]; });
 
-        // --- DOM Elements ---
-        const $ = (sel) => document.querySelector(sel);
+        var fontMap = {
+            inter: '"Inter", system-ui, sans-serif',
+            system: 'system-ui, -apple-system, sans-serif',
+            fira: '"Fira Sans", system-ui, sans-serif',
+            ibm: '"IBM Plex Sans", system-ui, sans-serif',
+            dm: '"DM Sans", system-ui, sans-serif',
+            space: '"Space Grotesk", system-ui, sans-serif',
+            geologica: '"Geologica", system-ui, sans-serif',
+            source: '"Source Serif 4", Georgia, serif',
+            atkinson: '"Atkinson Hyperlegible", system-ui, sans-serif',
+            mono: '"JetBrains Mono", "Fira Code", Consolas, monospace',
+            'geist-mono': '"Geist Mono", "JetBrains Mono", Consolas, monospace'
+        };
 
-        const senderView = $('#senderView');
-        const transferView = $('#transferView');
-        const dropZone = $('#dropZone');
-        const dropZoneContent = $('#dropZoneContent');
-        const fileSelectedContent = $('#fileSelectedContent');
-        const fileInput = $('#fileInput');
-        const selectedFileName = $('#selectedFileName');
-        const selectedFileSize = $('#selectedFileSize');
-        const clearFileBtn = $('#clearFileBtn');
-        const generateLinkBtn = $('#generateLinkBtn');
-        const generateLinkText = $('#generateLinkText');
-        const generateLinkSpinner = $('#generateLinkSpinner');
-        const transferTitle = $('#transferTitle');
-        const transferSubtitle = $('#transferSubtitle');
-        const statusDot = $('#statusDot');
-        const statusText = $('#statusText');
-        const transferFileInfo = $('#transferFileInfo');
-        const transferFileName = $('#transferFileName');
-        const transferFileSize = $('#transferFileSize');
-        const progressSection = $('#progressSection');
-        const progressLabel = $('#progressLabel');
-        const progressPercent = $('#progressPercent');
-        const progressBar = $('#progressBar');
-        const transferSpeed = $('#transferSpeed');
-        const transferEta = $('#transferEta');
-        const sessionLinkBox = $('#sessionLinkBox');
-        const sessionLinkInput = $('#sessionLinkInput');
-        const copyLinkBtn = $('#copyLinkBtn');
-        const cancelTransferBtn = $('#cancelTransferBtn');
-        const sendFileBtn = $('#sendFileBtn');
-        const errorBanner = $('#errorBanner');
-        const errorMessage = $('#errorMessage');
-        const dismissErrorBtn = $('#dismissErrorBtn');
-        const toastContainer = $('#toastContainer');
+        function loadSettings() {
+            try {
+                var raw = localStorage.getItem('ghostshare_settings');
+                if (raw) {
+                    var saved = JSON.parse(raw);
+                    Object.keys(defaults).forEach(function(k) {
+                        if (saved.hasOwnProperty(k)) settings[k] = saved[k];
+                    });
+                }
+            } catch(e) {}
+        }
 
-        // --- Utility Functions ---
+        function saveSettings() {
+            try {
+                localStorage.setItem('ghostshare_settings', JSON.stringify(settings));
+            } catch(e) {}
+        }
+
+        var fontStyleEl = null;
+
+        function applySettings() {
+            if (settings.lightTheme) {
+                document.body.classList.add('light');
+                document.documentElement.classList.remove('dark');
+                document.documentElement.classList.add('light');
+            } else {
+                document.body.classList.remove('light');
+                document.documentElement.classList.remove('light');
+                document.documentElement.classList.add('dark');
+            }
+
+            if (!settings.animations) {
+                document.body.classList.add('no-anim');
+            } else {
+                document.body.classList.remove('no-anim');
+            }
+
+            if (!settings.pattern) {
+                document.body.classList.add('no-pattern');
+            } else {
+                document.body.classList.remove('no-pattern');
+            }
+
+            if (settings.compact) {
+                document.body.classList.add('compact');
+            } else {
+                document.body.classList.remove('compact');
+            }
+
+            var fontStack = fontMap[settings.font] || fontMap.inter;
+            document.body.style.fontFamily = fontStack;
+            if (fontStyleEl) fontStyleEl.remove();
+            fontStyleEl = document.createElement('style');
+            fontStyleEl.id = 'dynamic-font';
+            fontStyleEl.textContent = 'body, body * { font-family: ' + fontStack + ' !important; } .mono { font-family: "JetBrains Mono", "Fira Code", Consolas, monospace !important; } .kbd { font-family: "JetBrains Mono", "Fira Code", Consolas, monospace !important; }';
+            document.head.appendChild(fontStyleEl);
+
+            var accentMap = {
+                amber: { 50:'#fffbeb',100:'#fef3c7',200:'#fde68a',300:'#fcd34d',400:'#fbbf24',500:'#f59e0b',600:'#d97706',700:'#b45309',800:'#92400e',900:'#78350f' },
+                blue:  { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a' },
+                green: { 50:'#f0fdf4',100:'#dcfce7',200:'#bbf7d0',300:'#86efac',400:'#4ade80',500:'#22c55e',600:'#16a34a',700:'#15803d',800:'#166534',900:'#14532d' },
+                purple:{ 50:'#faf5ff',100:'#f3e8ff',200:'#e9d5ff',300:'#d8b4fe',400:'#c084fc',500:'#a855f7',600:'#9333ea',700:'#7e22ce',800:'#6b21a8',900:'#581c87' },
+                rose:  { 50:'#fff1f2',100:'#ffe4e6',200:'#fecdd3',300:'#fda4af',400:'#fb7185',500:'#f43f5e',600:'#e11d48',700:'#be123c',800:'#9f1239',900:'#881337' }
+            };
+
+            var colors = accentMap[settings.accentColor] || accentMap.rose;
+            var root = document.documentElement;
+            Object.keys(colors).forEach(function(k) {
+                root.style.setProperty('--accent-' + k, colors[k]);
+            });
+
+            var styleId = 'dynamic-accent';
+            var existing = document.getElementById(styleId);
+            if (existing) existing.remove();
+
+            var css = [];
+            css.push('.text-accent-500 { color: ' + colors[500] + ' !important; }');
+            css.push('.bg-accent-500 { background-color: ' + colors[500] + ' !important; }');
+            css.push('.border-accent-500 { border-color: ' + colors[500] + ' !important; }');
+            css.push('.btn-primary { background: ' + colors[500] + '; }');
+            css.push('.btn-primary:hover:not(:disabled) { background: ' + colors[400] + '; }');
+            css.push('.btn-primary:active:not(:disabled) { background: ' + colors[600] + '; }');
+            css.push('.progress-fill { background: ' + colors[500] + '; }');
+            css.push('.drop-zone:hover, .drop-zone.drag-over { border-color: ' + colors[500] + '; background: ' + colors[500] + '15; }');
+            css.push('body.light .drop-zone:hover, body.light .drop-zone.drag-over { background: ' + colors[50] + '; }');
+            css.push('::selection { background: ' + colors[500] + '; }');
+            css.push('input:focus { border-color: ' + colors[500] + ' !important; }');
+            css.push('.status-dot.connecting { background: ' + colors[500] + '; }');
+            css.push('.toggle-switch input:checked + .toggle-slider { background: ' + colors[500] + '; }');
+            css.push('.color-swatch.active { box-shadow: 0 0 0 2px ' + colors[500] + '; }');
+            css.push('.setting-select:focus { border-color: ' + colors[500] + '; }');
+
+            var style = document.createElement('style');
+            style.id = styleId;
+            style.textContent = css.join('\n');
+            document.head.appendChild(style);
+        }
+
+        function buildIceServers() {
+            var list = settings.stunServers.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+            return { iceServers: list.map(function(url) { return { urls: url }; }) };
+        }
+
+        var CHUNK_SIZE = settings.chunkSize;
+        var BUFFERED_AMOUNT_LOW_THRESHOLD = settings.bufferThreshold;
+        var ICE_SERVERS = buildIceServers();
+
+        function refreshConfig() {
+            CHUNK_SIZE = settings.chunkSize;
+            BUFFERED_AMOUNT_LOW_THRESHOLD = settings.bufferThreshold;
+            ICE_SERVERS = buildIceServers();
+        }
+
+        var SIGNALING_SERVER_URL = window.location.protocol.replace('http', 'ws') + '//' + window.location.host;
+
+        var selectedFile = null;
+        var sessionId = null;
+        var isSender = false;
+        var isReceiver = false;
+        var peerConnection = null;
+        var dataChannel = null;
+        var signalingSocket = null;
+        var receivedChunks = [];
+        var receivedFileMetadata = null;
+        var receivedBytes = 0;
+        var transferStartTime = null;
+        var lastProgressUpdate = 0;
+        var bytesSinceLastUpdate = 0;
+        var transferActive = false;
+        var sendQueuePaused = false;
+        var currentChunkIndex = 0;
+        var totalChunks = 0;
+        var fileReader = null;
+        var connectionTimeout = null;
+        var signalingReady = false;
+        var reconnectTimer = null;
+        var transferLogs = [];
+        var peakSpeed = 0;
+        var currentTransferFileName = null;
+        var currentTransferFileSize = 0;
+        var currentTransferType = null;
+
+        var $ = function(sel) { return document.querySelector(sel); };
+
+        var senderView = $('#senderView');
+        var transferView = $('#transferView');
+        var dropZone = $('#dropZone');
+        var dropZoneContent = $('#dropZoneContent');
+        var fileSelectedContent = $('#fileSelectedContent');
+        var fileInput = $('#fileInput');
+        var selectedFileName = $('#selectedFileName');
+        var selectedFileSize = $('#selectedFileSize');
+        var clearFileBtn = $('#clearFileBtn');
+        var generateLinkBtn = $('#generateLinkBtn');
+        var generateLinkText = $('#generateLinkText');
+        var generateLinkSpinner = $('#generateLinkSpinner');
+        var transferTitle = $('#transferTitle');
+        var transferSubtitle = $('#transferSubtitle');
+        var statusDot = $('#statusDot');
+        var statusText = $('#statusText');
+        var transferFileInfo = $('#transferFileInfo');
+        var transferFileName = $('#transferFileName');
+        var transferFileSize = $('#transferFileSize');
+        var progressSection = $('#progressSection');
+        var progressLabel = $('#progressLabel');
+        var progressPercent = $('#progressPercent');
+        var progressBar = $('#progressBar');
+        var transferSpeed = $('#transferSpeed');
+        var transferEta = $('#transferEta');
+        var sessionLinkBox = $('#sessionLinkBox');
+        var sessionLinkInput = $('#sessionLinkInput');
+        var copyLinkBtn = $('#copyLinkBtn');
+        var cancelTransferBtn = $('#cancelTransferBtn');
+        var sendFileBtn = $('#sendFileBtn');
+        var errorBanner = $('#errorBanner');
+        var errorMessage = $('#errorMessage');
+        var dismissErrorBtn = $('#dismissErrorBtn');
+        var toastContainer = $('#toastContainer');
+
         function formatFileSize(bytes) {
             if (bytes === 0) return '0 B';
-            const units = ['B', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(1024));
-            const size = (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0);
-            return `${size} ${units[i]}`;
+            var units = ['B', 'KB', 'MB', 'GB'];
+            var i = Math.floor(Math.log(bytes) / Math.log(1024));
+            var size = (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0);
+            return size + ' ' + units[i];
         }
 
         function formatSpeed(bytesPerSecond) {
-            if (bytesPerSecond < 1024) return `${bytesPerSecond.toFixed(0)} B/s`;
-            if (bytesPerSecond < 1048576) return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`;
-            return `${(bytesPerSecond / 1048576).toFixed(1)} MB/s`;
+            if (bytesPerSecond < 1024) return bytesPerSecond.toFixed(0) + ' B/s';
+            if (bytesPerSecond < 1048576) return (bytesPerSecond / 1024).toFixed(1) + ' KB/s';
+            return (bytesPerSecond / 1048576).toFixed(1) + ' MB/s';
         }
 
         function formatTime(seconds) {
             if (!isFinite(seconds) || seconds <= 0) return '--';
-            if (seconds < 60) return `${Math.ceil(seconds)}s`;
-            const m = Math.floor(seconds / 60);
-            const s = Math.ceil(seconds % 60);
-            return `${m}m ${s}s`;
+            if (seconds < 60) return Math.ceil(seconds) + 's';
+            var m = Math.floor(seconds / 60);
+            var s = Math.ceil(seconds % 60);
+            return m + 'm ' + s + 's';
         }
 
         function generateSessionId() {
-            const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-            let id = '';
-            const array = new Uint8Array(12);
+            var chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+            var id = '';
+            var array = new Uint8Array(12);
             crypto.getRandomValues(array);
-            for (let i = 0; i < 12; i++) {
+            for (var i = 0; i < 12; i++) {
                 id += chars[array[i] % chars.length];
             }
             return id;
@@ -589,7 +1127,6 @@
             signalingReady = false;
         }
 
-        // --- WebRTC: Create Peer Connection ---
         function createPeerConnection() {
             peerConnection = new RTCPeerConnection(ICE_SERVERS);
 
@@ -604,17 +1141,54 @@
 
             peerConnection.oniceconnectionstatechange = function() {
                 var state = peerConnection.iceConnectionState;
-                console.log('ICE Connection State:', state);
                 if (state === 'connected' || state === 'completed') {
-                    updateStatus('connected', 'Secure Tunnel Established');
+                    if (reconnectTimer) {
+                        clearTimeout(reconnectTimer);
+                        reconnectTimer = null;
+                        if (transferActive) {
+                            sendQueuePaused = false;
+                            if (currentTransferType === 'Sent' && sendQueuePaused === false) {
+                                sendNextChunk();
+                            }
+                            updateStatus('connected', 'Reconnected — Resuming Transfer');
+                            transferSubtitle.textContent = 'Connection restored. Transfer resuming...';
+                        } else {
+                            updateStatus('connected', 'Secure Tunnel Established');
+                        }
+                    } else {
+                        updateStatus('connected', 'Secure Tunnel Established');
+                    }
                     if (isSender) {
-                        transferSubtitle.textContent = 'Receiver connected. Ready to send.';
                         sendFileBtn.classList.remove('hidden');
                     }
                     if (isReceiver) {
                         transferSubtitle.textContent = 'Secure tunnel established. Waiting for file...';
                     }
-                } else if (state === 'disconnected' || state === 'failed') {
+                } else if (state === 'disconnected') {
+                    if (transferActive) {
+                        sendQueuePaused = true;
+                        updateStatus('connecting', 'Connection Interrupted — Pausing Queue...');
+                        transferSubtitle.textContent = 'Temporary dropout. Attempting reconnect...';
+                        if (!reconnectTimer) {
+                            reconnectTimer = setTimeout(function() {
+                                reconnectTimer = null;
+                                if (transferActive && peerConnection && peerConnection.iceConnectionState !== 'connected') {
+                                    updateStatus('error', 'Connection Lost');
+                                    showError('Failed to recover connection. Please try again.');
+                                    transferActive = false;
+                                    sendQueuePaused = true;
+                                }
+                            }, 10000);
+                        }
+                    } else {
+                        updateStatus('error', 'Connection Lost');
+                        showError('The peer connection was lost. Please try again.');
+                    }
+                } else if (state === 'failed') {
+                    if (reconnectTimer) {
+                        clearTimeout(reconnectTimer);
+                        reconnectTimer = null;
+                    }
                     updateStatus('error', 'Connection Lost');
                     showError('The peer connection was lost. Please try again.');
                     if (transferActive) {
@@ -626,13 +1200,7 @@
                 }
             };
 
-            peerConnection.onsignalingstatechange = function() {
-                console.log('Signaling State:', peerConnection.signalingState);
-            };
-
-            // Receiver: handle incoming data channel
             peerConnection.ondatachannel = function(event) {
-                console.log('Data channel received');
                 dataChannel = event.channel;
                 setupDataChannel();
             };
@@ -640,14 +1208,12 @@
             return peerConnection;
         }
 
-        // --- WebRTC: Setup Data Channel ---
         function setupDataChannel() {
             if (!dataChannel) return;
 
             dataChannel.binaryType = 'arraybuffer';
 
             dataChannel.onopen = function() {
-                console.log('Data channel opened');
                 updateStatus('connected', 'Secure Tunnel Established');
                 if (isSender) {
                     transferSubtitle.textContent = 'Data channel open. Click Send File to begin.';
@@ -659,7 +1225,6 @@
             };
 
             dataChannel.onclose = function() {
-                console.log('Data channel closed');
                 if (transferActive) {
                     updateStatus('error', 'Transfer Interrupted');
                     showError('The data channel was closed unexpectedly.');
@@ -668,8 +1233,7 @@
                 }
             };
 
-            dataChannel.onerror = function(error) {
-                console.error('Data channel error:', error);
+            dataChannel.onerror = function() {
                 showError('A data channel error occurred.');
             };
 
@@ -677,19 +1241,16 @@
                 handleIncomingMessage(event);
             };
 
-            // Set up backpressure threshold
             dataChannel.bufferedAmountLowThreshold = BUFFERED_AMOUNT_LOW_THRESHOLD;
 
             dataChannel.onbufferedamountlow = function() {
                 if (sendQueuePaused && transferActive) {
-                    console.log('Buffer low, resuming send...');
                     sendQueuePaused = false;
                     sendNextChunk();
                 }
             };
         }
 
-        // --- WebRTC: Handle Incoming Messages ---
         function handleIncomingMessage(event) {
             if (typeof event.data === 'string') {
                 try {
@@ -699,9 +1260,7 @@
                     } else if (msg.type === 'transfer-complete') {
                         handleTransferComplete();
                     }
-                } catch (e) {
-                    console.error('Failed to parse control message:', e);
-                }
+                } catch (e) {}
             } else if (event.data instanceof ArrayBuffer) {
                 handleBinaryChunk(event.data);
             }
@@ -813,17 +1372,14 @@
 
                 showToast('Download complete!', 'success');
             } catch (e) {
-                console.error('Failed to assemble file:', e);
                 showError('Failed to assemble the received file.');
             }
 
-            // Clear memory
             receivedChunks = [];
             receivedFileMetadata = null;
             receivedBytes = 0;
         }
 
-        // --- File Sending with Backpressure ---
         function startFileSend() {
             if (!dataChannel || dataChannel.readyState !== 'open') {
                 showError('Data channel is not open. Please wait for the connection.');
@@ -869,7 +1425,6 @@
             try {
                 dataChannel.send(JSON.stringify(metadata));
             } catch (e) {
-                console.error('Failed to send metadata:', e);
                 showError('Failed to initiate file transfer.');
                 transferActive = false;
                 return;
@@ -887,7 +1442,6 @@
             }
 
             if (dataChannel.bufferedAmount > BUFFERED_AMOUNT_LOW_THRESHOLD) {
-                console.log('Backpressure: bufferedAmount =', dataChannel.bufferedAmount, 'pausing...');
                 sendQueuePaused = true;
                 return;
             }
@@ -896,9 +1450,7 @@
                 transferActive = false;
                 try {
                     dataChannel.send(JSON.stringify({ type: 'transfer-complete' }));
-                } catch (e) {
-                    console.error('Failed to send completion signal:', e);
-                }
+                } catch (e) {}
                 updateStatus('connected', 'Complete');
                 progressPercent.textContent = '100%';
                 progressBar.style.width = '100%';
@@ -930,7 +1482,6 @@
                 try {
                     dataChannel.send(packet.buffer);
                 } catch (err) {
-                    console.error('Send error:', err);
                     transferActive = false;
                     showError('Failed to send data chunk. Connection may be lost.');
                     return;
@@ -953,8 +1504,7 @@
                 }
             };
 
-            reader.onerror = function(e) {
-                console.error('FileReader error:', e);
+            reader.onerror = function() {
                 transferActive = false;
                 showError('Failed to read file chunk.');
             };
@@ -980,12 +1530,9 @@
             transferEta.textContent = formatTime(eta);
         }
 
-        // --- Signaling ---
         function sendSignalingMessage(msg) {
             if (signalingSocket && signalingSocket.readyState === WebSocket.OPEN) {
-                var payload = {
-                    sessionId: sessionId
-                };
+                var payload = { sessionId: sessionId };
                 Object.keys(msg).forEach(function(k) { payload[k] = msg[k]; });
                 signalingSocket.send(JSON.stringify(payload));
             }
@@ -1000,7 +1547,6 @@
                 signalingSocket = new WebSocket(SIGNALING_SERVER_URL);
 
                 signalingSocket.onopen = function() {
-                    console.log('Signaling connected');
                     signalingReady = true;
 
                     signalingSocket.send(JSON.stringify({
@@ -1024,13 +1570,10 @@
                     try {
                         var msg = JSON.parse(event.data);
                         handleSignalingMessage(msg);
-                    } catch (e) {
-                        console.error('Failed to parse signaling message:', e);
-                    }
+                    } catch (e) {}
                 };
 
                 signalingSocket.onclose = function() {
-                    console.log('Signaling disconnected');
                     signalingReady = false;
                     if (transferActive) {
                         updateStatus('error', 'Signaling Lost');
@@ -1038,8 +1581,7 @@
                     }
                 };
 
-                signalingSocket.onerror = function(error) {
-                    console.error('Signaling error:', error);
+                signalingSocket.onerror = function() {
                     reject(new Error('Failed to connect to signaling server'));
                 };
             });
@@ -1048,7 +1590,6 @@
         async function handleSignalingMessage(msg) {
             switch (msg.type) {
                 case 'registered':
-                    console.log('Registered with session:', sessionId);
                     if (isReceiver) {
                         updateStatus('connecting', 'Waiting for sender...');
                         transferSubtitle.textContent = 'Waiting for sender...';
@@ -1056,7 +1597,6 @@
                     break;
 
                 case 'peer-joined':
-                    console.log('Peer joined session');
                     if (isSender) {
                         updateStatus('connecting', 'Peer joined. Connecting...');
                         transferSubtitle.textContent = 'Receiver found. Establishing tunnel...';
@@ -1077,7 +1617,6 @@
                             });
                             updateStatus('connecting', 'Connecting...');
                         } catch (e) {
-                            console.error('Failed to handle offer:', e);
                             showError('Failed to establish connection.');
                         }
                     }
@@ -1089,7 +1628,6 @@
                             await peerConnection.setRemoteDescription(new RTCSessionDescription(msg.sdp));
                             updateStatus('connecting', 'Tunnel establishing...');
                         } catch (e) {
-                            console.error('Failed to handle answer:', e);
                             showError('Failed to complete connection.');
                         }
                     }
@@ -1099,9 +1637,7 @@
                     if (peerConnection && msg.candidate) {
                         try {
                             await peerConnection.addIceCandidate(new RTCIceCandidate(msg.candidate));
-                        } catch (e) {
-                            console.error('Failed to add ICE candidate:', e);
-                        }
+                        } catch (e) {}
                     }
                     break;
 
@@ -1137,12 +1673,10 @@
                 });
                 updateStatus('connecting', 'Offer sent. Waiting...');
             } catch (e) {
-                console.error('Failed to create offer:', e);
                 showError('Failed to initiate connection.');
             }
         }
 
-        // --- UI Event Handlers ---
         function handleFileSelect(file) {
             if (file.size > 1073741824) {
                 showToast('File exceeds 1 GB limit.', 'error');
@@ -1238,7 +1772,6 @@
                 generateLinkBtn.disabled = false;
 
             } catch (e) {
-                console.error('Failed to create session:', e);
                 showError('Failed to connect to signaling server. Is it running?');
                 generateLinkText.classList.remove('hidden');
                 generateLinkSpinner.classList.add('hidden');
@@ -1276,7 +1809,6 @@
 
         dismissErrorBtn.addEventListener('click', hideError);
 
-        // --- Receiver Mode: Check URL for session ---
         async function checkReceiverMode() {
             var params = new URLSearchParams(window.location.search);
             var sid = params.get('session');
@@ -1306,13 +1838,11 @@
                 updateStatus('connecting', 'Waiting for sender...');
                 transferSubtitle.textContent = 'Waiting for sender...';
             } catch (e) {
-                console.error('Failed to connect as receiver:', e);
                 showError('Failed to connect. Is the server running and link valid?');
                 updateStatus('error', 'Connection Failed');
             }
         }
 
-        // --- Keyboard Shortcuts ---
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 if (transferActive) {
@@ -1321,8 +1851,225 @@
             }
         });
 
-        // --- Initialize ---
+        var settingsGear = $('#settingsGear');
+        var settingsOverlay = $('#settingsOverlay');
+        var closeSettingsBtn = $('#closeSettingsBtn');
+        var settingLightTheme = $('#settingLightTheme');
+        var settingAnimations = $('#settingAnimations');
+        var settingPattern = $('#settingPattern');
+        var settingCompact = $('#settingCompact');
+        var settingFont = $('#settingFont');
+        var settingChunkSize = $('#settingChunkSize');
+        var settingBuffer = $('#settingBuffer');
+        var settingStunServers = $('#settingStunServers');
+        var resetSettingsBtn = $('#resetSettingsBtn');
+
+        function syncSettingsToUI() {
+            settingLightTheme.checked = settings.lightTheme;
+            settingAnimations.checked = settings.animations;
+            settingPattern.checked = settings.pattern;
+            settingCompact.checked = settings.compact;
+            settingFont.value = settings.font;
+            settingChunkSize.value = String(settings.chunkSize);
+            settingBuffer.value = String(settings.bufferThreshold);
+            settingStunServers.value = settings.stunServers;
+
+            document.querySelectorAll('.color-swatch').forEach(function(el) {
+                el.classList.toggle('active', el.dataset.color === settings.accentColor);
+            });
+        }
+
+        function syncUItoSettings() {
+            settings.lightTheme = settingLightTheme.checked;
+            settings.animations = settingAnimations.checked;
+            settings.pattern = settingPattern.checked;
+            settings.compact = settingCompact.checked;
+            settings.font = settingFont.value;
+            settings.chunkSize = parseInt(settingChunkSize.value) || 16384;
+            settings.bufferThreshold = parseInt(settingBuffer.value) || 65536;
+            settings.stunServers = settingStunServers.value.trim() || 'stun:stun.l.google.com:19302, stun:stun1.l.google.com:19302';
+        }
+
+        function openSettings() {
+            syncSettingsToUI();
+            settingsOverlay.classList.remove('hidden');
+            /* Force a reflow so the browser registers the element before adding the open class */
+            void settingsOverlay.offsetWidth;
+            settingsOverlay.classList.add('open');
+        }
+
+        function closeSettings() {
+            settingsOverlay.classList.remove('open');
+            syncUItoSettings();
+            saveSettings();
+            applySettings();
+            refreshConfig();
+            /* Wait for the close animation to finish before hiding */
+            var onTransitionEnd = function() {
+                settingsOverlay.classList.add('hidden');
+                settingsOverlay.removeEventListener('transitionend', onTransitionEnd);
+            };
+            settingsOverlay.addEventListener('transitionend', onTransitionEnd);
+        }
+
+        settingsGear.addEventListener('click', openSettings);
+        closeSettingsBtn.addEventListener('click', closeSettings);
+
+        settingsOverlay.addEventListener('click', function(e) {
+            if (e.target === settingsOverlay) closeSettings();
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && settingsOverlay.classList.contains('open')) {
+                if (!transferActive) closeSettings();
+            }
+        });
+
+        document.querySelectorAll('.color-swatch').forEach(function(swatch) {
+            swatch.addEventListener('click', function() {
+                settings.accentColor = this.dataset.color;
+                document.querySelectorAll('.color-swatch').forEach(function(s) {
+                    s.classList.toggle('active', s.dataset.color === settings.accentColor);
+                });
+                saveSettings();
+                applySettings();
+            });
+        });
+
+        [settingLightTheme, settingAnimations, settingPattern, settingCompact].forEach(function(el) {
+            el.addEventListener('change', function() {
+                syncUItoSettings();
+                saveSettings();
+                applySettings();
+            });
+        });
+
+        [settingFont, settingChunkSize, settingBuffer].forEach(function(el) {
+            el.addEventListener('change', function() {
+                syncUItoSettings();
+                saveSettings();
+                applySettings();
+                refreshConfig();
+            });
+        });
+
+        settingStunServers.addEventListener('change', function() {
+            syncUItoSettings();
+            saveSettings();
+            refreshConfig();
+        });
+
+        resetSettingsBtn.addEventListener('click', function() {
+            Object.keys(defaults).forEach(function(k) { settings[k] = defaults[k]; });
+            saveSettings();
+            applySettings();
+            refreshConfig();
+            syncSettingsToUI();
+            showToast('Settings reset to defaults.', 'info');
+        });
+
+        /* ---- Transfer Log ---- */
+        var transferLogToggle = $('#transferLogToggle');
+        var transferLogContent = $('#transferLogContent');
+        var transferLogList = $('#transferLogList');
+        var transferLogEmpty = $('#transferLogEmpty');
+        var transferLogPanel = $('#transferLogPanel');
+        var logChevron = $('#logChevron');
+
+        transferLogToggle.addEventListener('click', function() {
+            var open = !transferLogContent.classList.contains('hidden');
+            if (open) {
+                transferLogContent.classList.add('hidden');
+                logChevron.style.transform = '';
+            } else {
+                transferLogContent.classList.remove('hidden');
+                logChevron.style.transform = 'rotate(180deg)';
+            }
+        });
+
+        function appendTransferLog(fileName, fileSize, type, speedMBs) {
+            transferLogs.push({
+                ts: new Date(),
+                fileName: fileName,
+                fileSize: fileSize,
+                type: type,
+                speed: speedMBs
+            });
+            renderTransferLogs();
+        }
+
+        function renderTransferLogs() {
+            transferLogList.innerHTML = '';
+            if (transferLogs.length === 0) {
+                transferLogEmpty.classList.remove('hidden');
+            } else {
+                transferLogEmpty.classList.add('hidden');
+                transferLogs.forEach(function(log) {
+                    var t = new Date(log.ts);
+                    var ts = ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2) + ':' + ('0' + t.getSeconds()).slice(-2);
+                    var row = document.createElement('div');
+                    row.className = 'flex items-center justify-between text-[10px] py-1 px-2 rounded ' + (log.type === 'Sent' ? 'bg-[#0f1a0f]' : 'bg-[#0f0f1a]');
+                    row.innerHTML =
+                        '<span class="mono text-gray-600 w-14 flex-shrink-0">' + ts + '</span>' +
+                        '<span class="text-gray-400 truncate mx-2 flex-1 min-w-0" title="' + log.fileName + '">' + log.fileName + '</span>' +
+                        '<span class="text-gray-600 w-16 flex-shrink-0 text-right mono">' + formatFileSize(log.fileSize) + '</span>' +
+                        '<span class="w-16 flex-shrink-0 text-right mono ' + (log.type === 'Sent' ? 'text-green-400' : 'text-blue-400') + '">' + log.type + '</span>' +
+                        '<span class="w-16 flex-shrink-0 text-right mono text-gray-500">' + log.speed + ' MB/s</span>';
+                    transferLogList.appendChild(row);
+                });
+            }
+        }
+
+        /* Override handleTransferComplete to log */
+        var _origHandleTransferComplete = handleTransferComplete;
+        handleTransferComplete = function() {
+            var fileName = receivedFileMetadata ? receivedFileMetadata.fileName : (currentTransferFileName || 'Unknown');
+            var elapsed = transferStartTime ? ((Date.now() - transferStartTime) / 1000) : 1;
+            var speed = elapsed > 0 ? (receivedFileMetadata.fileSize / elapsed / 1048576) : 0;
+            peakSpeed = Math.max(peakSpeed, speed);
+            var finalSpeed = peakSpeed > 0 ? peakSpeed.toFixed(1) : speed.toFixed(1);
+            appendTransferLog(fileName, receivedFileMetadata ? receivedFileMetadata.fileSize : 0, 'Received', finalSpeed);
+            peakSpeed = 0;
+            _origHandleTransferComplete();
+        };
+
+        /* Track peak speed during send */
+        var _origUpdateSendProgress = updateSendProgress;
+        updateSendProgress = function(now) {
+            if (selectedFile) {
+                var elapsed = (now - transferStartTime) / 1000;
+                var sent = currentChunkIndex * CHUNK_SIZE;
+                var speed = elapsed > 0 ? (sent / elapsed / 1048576) : 0;
+                if (speed > peakSpeed) peakSpeed = speed;
+            }
+            _origUpdateSendProgress(now);
+        };
+
+        /* Log sent files on completion */
+        var _origSendFileComplete = sendFileBtn.addEventListener;
+        /* Hook into the send completion in sendNextChunk */
+        var _origSendNextChunk = sendNextChunk;
+        sendNextChunk = function() {
+            if (currentChunkIndex === 0) {
+                peakSpeed = 0;
+                currentTransferFileName = selectedFile ? selectedFile.name : 'Unknown';
+                currentTransferFileSize = selectedFile ? selectedFile.size : 0;
+                currentTransferType = 'Sent';
+            }
+            if (currentChunkIndex >= totalChunks) {
+                var elapsed = transferStartTime ? ((Date.now() - transferStartTime) / 1000) : 1;
+                var speed = elapsed > 0 ? (selectedFile.size / elapsed / 1048576) : 0;
+                var finalSpeed = peakSpeed > 0 ? peakSpeed.toFixed(1) : speed.toFixed(1);
+                appendTransferLog(currentTransferFileName, currentTransferFileSize, 'Sent', finalSpeed);
+                peakSpeed = 0;
+            }
+            _origSendNextChunk();
+        };
+
         function init() {
+            loadSettings();
+            applySettings();
+            refreshConfig();
             resetUI();
             checkReceiverMode();
         }
@@ -1332,11 +2079,6 @@
         });
 
         init();
-
-        console.log('GhostShare ready');
-        console.log('  Server:', SIGNALING_SERVER_URL);
-        console.log('  Chunk:', formatFileSize(CHUNK_SIZE));
-        console.log('  Buffer threshold:', formatFileSize(BUFFERED_AMOUNT_LOW_THRESHOLD));
     })();
     </script>
 </body>
