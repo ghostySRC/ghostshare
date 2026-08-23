@@ -12,12 +12,13 @@
     "31-render-fix.js",
     "40-ui.js",
     "41-ui-fixes.js",
+    "42-patch-notes.js",
     "50-app.js",
     "99-bootstrap.js"
   ];
 
   const load = async (file) => {
-    const response = await fetch(`${base}${file}?v=0.1.0-alpha.5&t=${Date.now()}`, { cache: "no-store" });
+    const response = await fetch(`${base}${file}?v=0.1.0-alpha.6&t=${Date.now()}`, { cache: "no-store" });
     if (!response.ok) throw new Error(`Failed to fetch ${file} (${response.status})`);
     const code = await response.text();
     const id = `gmp-module-${file}`;
