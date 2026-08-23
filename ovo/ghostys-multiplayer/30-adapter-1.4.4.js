@@ -1,0 +1,215 @@
+(function (root) {
+  "use strict";
+  const ns = root.GMPInternal;
+
+  class OvO144Adapter {
+    constructor(runtime) {
+      this.runtime = runtime;
+      this.playerType = null;
+      this.textType = null;
+      this.globalType = null;
+      this.remoteInstances = new Map();
+      this.resolveTypes();
+    }
+
+    resolveTypes() {
+      const runtime = this.runtime;
+      this.playerType = runtime.types_by_index.find((x) =>
+        x.animations && x.animations[0] && x.animations[0].frames &&
+        x.animations[0].frames[0] &&
+        String(x.animations[0].frames[0].texture_file || "").includes("collider")
+      );
+      this.textType = runtime.types_by_index.find((x) =>
+        x.name === "TextAlign" ||
+        (root.cr && root.cr.plugins_ && root.cr.plugins_.TextModded &&
+          x.plugin instanceof root.cr.plugins_.TextModded && x.vars_count === 8 && !x.is_family)
+      );
+      this.globalType = runtime.types_by_index.find((x) =>
+        root.cr && root.cr.plugins_ && root.cr.plugins_.Globals &&
+        x.plugin instanceof root.cr.plugins_.Globals && x.instvar_sids && x.instvar_sids.length === 24
+      );
+      if (!this.playerType || !this.textType || !this.globalType) {
+        throw new Error("Ghosty's Multiplayer could not resolve OvO 1.4.4 runtime types.");
+      }
+    }
+
+    currentLayout() {
+      return this.runtime.running_layout && this.runtime.running_layout.name || "Unknown";
+    }
+
+    getLocalPlayer() {
+      return this.playerType.instances.find((x) =>
+        x && x.instance_vars && x.instance_vars[17] === "" &&
+        x.behavior_insts && x.behavior_insts[0] && x.behavior_insts[0].enabled &&
+        !x.__gmpRemote
+      ) || null;
+    }
+
+    getLocalState(username) {
+      const player = this.getLocalPlayer();
+      const fallbackSkin = this.globalType.instances[0] && this.globalType.instances[0].instance_vars
+        ? this.globalType.instances[0].instance_vars[8] || ""
+        : "";
+      if (!player) {
+        return {
+          layout: this.currentLayout(),
+          username,
+          skin: fallbackSkin,
+          active: false
+        };
+      }
+      return {
+        active: true,
+        x: player.x,
+        y: player.y,
+        angle: player.angle || 0,
+        state: player.instance_vars[0],
+        side: player.instance_vars[2],
+        skin: player.instance_vars[12] || fallbackSkin,
+        frame: Number.isFinite(player.cur_frame) ? player.cur_frame : 0,
+        layout: this.currentLayout(),
+        layer: player.layer && player.layer.name || "Game",
+        username
+      };
+    }
+
+    createRemotePlayer(playerId, state) {
+      if (!state || !state.active || state.layout !== this.currentLayout()) return null;
+      if (!Number.isFinite(state.x) || !Number.isFinite(state.y)) return null;
+      const layer = this.runtime.running_layout.layers.find((x) => x.name === state.layer);
+      if (!layer) return null;
+
+      const instance = this.runtime.createInstance(this.playerType, layer, state.x, state.y);
+      instance.__gmpRemote = true;
+      instance.visible = false;
+      if (instance.instance_vars) {
+        instance.instance_vars[16] = 1;
+        instance.instance_vars[17] = "";
+        instance.instance_vars[12] = state.skin || "";
+      }
+
+      const remote = {
+        playerId,
+        instance,
+        labels: this.createLabels(layer, state.username || "Player", state.x, state.y),
+        skin: null,
+        side: null,
+        frame: null
+      };
+      this.remoteInstances.set(playerId, remote);
+      setTimeout(() => this.applySkin(remote, state.skin || ""), 100);
+      return remote;
+    }
+
+    destroyRemotePlayer(playerId) {
+      const remote = typeof playerId === "string" ? this.remoteInstances.get(playerId) : playerId;
+      if (!remote) return;
+      try {
+        if (remote.instance) {
+          this.resetSiblingSkins(remote.instance);
+          this.runtime.DestroyInstance(remote.instance);
+        }
+      } catch (_) {}
+      for (const label of remote.labels || []) {
+        try { this.runtime.DestroyInstance(label); } catch (_) {}
+      }
+      if (typeof playerId === "string") this.remoteInstances.delete(playerId);
+      else if (remote.playerId) this.remoteInstances.delete(remote.playerId);
+    }
+
+    destroyAllRemotePlayers() {
+      for (const id of Array.from(this.remoteInstances.keys())) this.destroyRemotePlayer(id);
+    }
+
+    updateRemotePlayer(playerId, state) {
+      let remote = this.remoteInstances.get(playerId);
+      if (!state || !state.active || state.layout !== this.currentLayout()) {
+        if (remote) this.destroyRemotePlayer(playerId);
+        return;
+      }
+      if (!remote) remote = this.createRemotePlayer(playerId, state);
+      if (!remote || !remote.instance) return;
+
+      const instance = remote.instance;
+      instance.x = state.x;
+      instance.y = state.y;
+      instance.angle = state.angle || 0;
+      if (instance.instance_vars) {
+        instance.instance_vars[0] = state.state;
+        instance.instance_vars[2] = state.side;
+      }
+      if (state.side !== remote.side) {
+        remote.side = state.side;
+        try {
+          if (state.side > 0) root.c2_callFunction("Player > Unmirror", [instance.uid]);
+          if (state.side < 0) root.c2_callFunction("Player > Mirror", [instance.uid]);
+        } catch (_) {}
+      }
+      if (Number.isFinite(state.frame) && state.frame !== remote.frame) {
+        remote.frame = state.frame;
+        try { root.cr.plugins_.Sprite.prototype.acts.SetAnimFrame.call(instance, state.frame); } catch (_) {}
+      }
+      if ((state.skin || "") !== remote.skin) this.applySkin(remote, state.skin || "");
+      this.updateLabels(remote.labels, state.username || "Player", state.x, state.y);
+      instance.set_bbox_changed();
+    }
+
+    createLabels(layer, username, x, y) {
+      const offsets = [[-2, 0], [2, 0], [0, -2], [0, 2], [0, 0]];
+      return offsets.map(([ox, oy], index) => {
+        const inst = this.runtime.createInstance(this.textType, layer, x - 100 + ox, y - 55 + oy);
+        inst.text = username;
+        inst.height = 25;
+        inst.width = 200;
+        inst.facename = "Retron2000";
+        inst.halign = 50;
+        inst.valign = 50;
+        inst.color = index === 4 ? "rgb(255,255,255)" : "rgb(0,0,0)";
+        inst.fontstyle = index === 4 ? "" : "bold";
+        if (typeof inst.updateFont === "function") inst.updateFont();
+        inst.set_bbox_changed();
+        return inst;
+      });
+    }
+
+    updateLabels(labels, username, x, y) {
+      const offsets = [[-2, 0], [2, 0], [0, -2], [0, 2], [0, 0]];
+      (labels || []).forEach((inst, index) => {
+        if (!inst) return;
+        const [ox, oy] = offsets[index] || [0, 0];
+        inst.x = x - 100 + ox;
+        inst.y = y - 55 + oy;
+        if (inst.text !== username) {
+          inst.text = username;
+          if (typeof inst.updateFont === "function") inst.updateFont();
+        }
+        inst.set_bbox_changed();
+      });
+    }
+
+    applySkin(remote, skin) {
+      if (!remote || !remote.instance) return;
+      remote.skin = skin;
+      if (remote.instance.instance_vars) remote.instance.instance_vars[12] = skin;
+      for (const sibling of remote.instance.siblings || []) {
+        try {
+          const behavior = sibling.behaviorSkins && sibling.behaviorSkins[0];
+          if (!behavior) continue;
+          if (!skin) root.cr.behaviors.SkymenSkin.prototype.acts.UseDefault.call(behavior);
+          else root.cr.behaviors.SkymenSkin.prototype.acts.SetSkin.call(behavior, skin);
+        } catch (_) {}
+      }
+    }
+
+    resetSiblingSkins(instance) {
+      for (const sibling of instance.siblings || []) {
+        try {
+          const behavior = sibling.behaviorSkins && sibling.behaviorSkins[0];
+          if (behavior) root.cr.behaviors.SkymenSkin.prototype.acts.UseDefault.call(behavior);
+        } catch (_) {}
+      }
+    }
+  }
+
+  Object.assign(ns, { OvO144Adapter });
+})(globalThis);
