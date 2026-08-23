@@ -35,12 +35,13 @@
       };
 
       const body = this.panel.querySelector(".gmp-body");
-      this.__gmpWheel = (event) => {
+      this.__gmpWheelGuard = (event) => {
+        if (!this.__gmpOpen || !this.panel.contains(event.target)) return;
         event.preventDefault();
-        event.stopPropagation();
+        event.stopImmediatePropagation();
         body.scrollTop += event.deltaY;
       };
-      body.addEventListener("wheel", this.__gmpWheel, { passive:false });
+      document.addEventListener("wheel", this.__gmpWheelGuard, { passive:false, capture:true });
 
       this.__gmpKeyDown = (event) => {
         event.stopPropagation();
@@ -68,8 +69,7 @@
 
     destroy() {
       for (const type of this.__gmpBlockedEvents || []) document.removeEventListener(type, this.__gmpOutsideGuard, true);
-      const body = this.panel?.querySelector(".gmp-body");
-      if (body && this.__gmpWheel) body.removeEventListener("wheel", this.__gmpWheel);
+      if (this.__gmpWheelGuard) document.removeEventListener("wheel", this.__gmpWheelGuard, true);
       if (this.panel) {
         this.panel.removeEventListener("keydown", this.__gmpKeyDown);
         this.panel.removeEventListener("keyup", this.__gmpKeyUp);
