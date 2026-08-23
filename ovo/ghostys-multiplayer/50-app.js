@@ -6,10 +6,14 @@
     constructor(runtime, gameVersion) {
       this.runtime = runtime;
       this.gameVersion = gameVersion;
-      this.playerId = localStorage.getItem(ns.STORAGE_KEYS.playerId) || ns.randomId();
-      localStorage.setItem(ns.STORAGE_KEYS.playerId, this.playerId);
-      this.resumeToken = localStorage.getItem(ns.STORAGE_KEYS.resumeToken) || ns.randomId();
-      localStorage.setItem(ns.STORAGE_KEYS.resumeToken, this.resumeToken);
+      // Keep a persistent profile id for future accounts/settings, but use a fresh
+      // participant id for every page instance. localStorage is shared by tabs, so
+      // using the persistent id as the room identity made a second tab look like a
+      // duplicate player and the host rejected it.
+      this.profileId = localStorage.getItem(ns.STORAGE_KEYS.playerId) || ns.randomId();
+      localStorage.setItem(ns.STORAGE_KEYS.playerId, this.profileId);
+      this.playerId = ns.randomId();
+      this.resumeToken = ns.randomId();
       this.username = localStorage.getItem(ns.STORAGE_KEYS.username) || "OvO Player";
       this.room = null;
       this.players = new Map();
