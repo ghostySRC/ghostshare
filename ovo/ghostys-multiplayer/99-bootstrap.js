@@ -14,13 +14,36 @@
     return "unknown";
   }
 
+  function disableOldMultiplayerIfNeeded() {
+    try {
+      const settings = JSON.parse(localStorage.getItem("modSettings"));
+      if (settings && settings.mods && settings.mods.multiplayer && settings.mods.multiplayer.enabled === true) {
+        settings.mods.multiplayer.enabled = false;
+        localStorage.setItem("modSettings", JSON.stringify(settings));
+        sessionStorage.setItem("gmp.disabledLegacyMultiplayer", "1");
+        location.reload();
+        return true;
+      }
+    } catch (error) {
+      console.warn("[GMP] Could not inspect legacy Multiplayer setting", error);
+    }
+    return false;
+  }
+
   function boot() {
+    if (disableOldMultiplayerIfNeeded()) return;
     if (document.getElementById("ovo-multiplayer-toggle-button")) {
-      const message = "The old OvO Multiplayer mod is still enabled. Disable it and reload before starting Ghosty's Multiplayer.";
+      if (!sessionStorage.getItem("gmp.legacyReloadAttempted")) {
+        sessionStorage.setItem("gmp.legacyReloadAttempted", "1");
+        location.reload();
+        return;
+      }
+      const message = "The old OvO Multiplayer mod is still active. Disable it in the Modloader and reload.";
       console.warn("[GMP] " + message);
       alert(message);
       return;
     }
+    sessionStorage.removeItem("gmp.legacyReloadAttempted");
     if (typeof root.cr_getC2Runtime !== "function") return setTimeout(boot, 100);
     const runtime = root.cr_getC2Runtime();
     if (!runtime || runtime.isloading || !runtime.running_layout) return setTimeout(boot, 100);
