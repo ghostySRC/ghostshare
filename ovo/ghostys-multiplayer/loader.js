@@ -3,7 +3,7 @@
   if (globalThis.__ghostysMultiplayerLoaderRunning) return;
   globalThis.__ghostysMultiplayerLoaderRunning = true;
 
-  const base = "https://cdn.jsdelivr.net/gh/ghostySRC/ghostshare@main/ovo/ghostys-multiplayer/";
+  const base = "https://raw.githubusercontent.com/ghostySRC/ghostshare/main/ovo/ghostys-multiplayer/";
   const files = [
     "00-namespace.js",
     "10-snapshot-buffer.js",
@@ -14,18 +14,17 @@
     "99-bootstrap.js"
   ];
 
-  const load = (file) => new Promise((resolve, reject) => {
+  const load = async (file) => {
+    const response = await fetch(`${base}${file}?v=0.1.0-alpha.2`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`Failed to fetch ${file} (${response.status})`);
+    const code = await response.text();
     const id = `gmp-module-${file}`;
-    const old = document.getElementById(id);
-    if (old) old.remove();
+    document.getElementById(id)?.remove();
     const script = document.createElement("script");
     script.id = id;
-    script.src = `${base}${file}?v=0.1.0-alpha.2`;
-    script.async = false;
-    script.onload = resolve;
-    script.onerror = () => reject(new Error(`Failed to load ${file}`));
+    script.textContent = `${code}\n//# sourceURL=ghostys-multiplayer/${file}`;
     document.head.appendChild(script);
-  });
+  };
 
   (async () => {
     try {
