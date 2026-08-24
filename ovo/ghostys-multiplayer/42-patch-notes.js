@@ -6,6 +6,15 @@
 
   const PATCH_NOTES = [
     {
+      version: "0.2.0-alpha.5",
+      title: "Leak-free auto updates",
+      changes: [
+        "Unregistered the old multiplayer app from Construct's tick loop before every loader update.",
+        "Made app teardown idempotent so overlapping bootstrap generations cannot destroy the same resources twice.",
+        "Cleaned delayed UI timers and removed the already-running app reference before a replacement boots."
+      ]
+    },
+    {
       version: "0.2.0-alpha.4",
       title: "Stable public presence",
       changes: [

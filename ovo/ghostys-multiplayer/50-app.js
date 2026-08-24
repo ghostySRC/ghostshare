@@ -355,8 +355,10 @@
     }
 
     destroy() {
+      if (this.destroyed) return;
       this.destroyed = true;
       clearInterval(this.sendTimer);
+      try { this.runtime.untickMe(this); } catch (_) {}
       this.socket?.disconnect();
       this.directory?.destroy();
       this.adapter.setLocalControlsEnabled(true);

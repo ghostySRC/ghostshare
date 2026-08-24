@@ -100,7 +100,7 @@
     empty(text) { const el=document.createElement("div");el.className="gmp-empty";el.textContent=text;return el; }
     formatTime(ms) { const value=Math.max(0,Number(ms)||0);const minutes=Math.floor(value/60000);const seconds=Math.floor(value/1000)%60;const millis=Math.floor(value%1000);return `${minutes}:${String(seconds).padStart(2,"0")}.${String(millis).padStart(3,"0")}`; }
     emit(name,detail) { this.dispatchEvent(new CustomEvent(name,{detail})); }
-    destroy() { clearTimeout(this.raceOverlayTimer);this.root?.remove();this.panel?.remove();this.refs.backdrop?.remove();this.refs.toast?.remove();this.refs.raceOverlay?.remove(); }
+    destroy() { clearTimeout(this.toastTimer);clearTimeout(this.raceOverlayTimer);this.root?.remove();this.panel?.remove();this.refs.backdrop?.remove();this.refs.toast?.remove();this.refs.raceOverlay?.remove(); }
   }
   Object.assign(ns,{GhostyUI});
 })(globalThis);

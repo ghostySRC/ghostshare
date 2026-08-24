@@ -4,7 +4,10 @@
   const bootGeneration = (root.__gmpBootGeneration || 0) + 1;
   root.__gmpBootGeneration = bootGeneration;
   if (root.ghostysMultiplayer && root.ghostysMultiplayer.destroy) {
-    root.ghostysMultiplayer.destroy();
+    const previousApp = root.ghostysMultiplayer;
+    previousApp.destroy();
+    try { previousApp.runtime?.untickMe(previousApp); } catch (_) {}
+    root.ghostysMultiplayer = null;
   }
 
   function getGameVersion() {
