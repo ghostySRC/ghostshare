@@ -6,6 +6,17 @@
 
   const PATCH_NOTES = [
     {
+      version: "0.2.0-alpha.3",
+      title: "Clean room transitions",
+      changes: [
+        "Added a large in-game countdown, GO signal and finish-time overlay that never blocks game controls.",
+        "Fixed switching rooms or failing a Browse join leaving the old room and player UI stuck on screen.",
+        "Added connection and handshake timeouts so silent PeerJS failures recover instead of hanging forever.",
+        "Rejected outdated protocol clients before they could create partially synchronized players.",
+        "Stopped interpolation across level changes and long respawn teleports."
+      ]
+    },
+    {
       version: "0.2.0-alpha.2",
       title: "Race and directory hardening",
       changes: [

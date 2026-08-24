@@ -221,6 +221,7 @@
       this.updateDirectoryPresence();
       const url = new URL(location.href);
       url.searchParams.delete("gmpRoom");
+      url.searchParams.delete("gmpAutoJoin");
       history.replaceState({}, "", url);
     }
 

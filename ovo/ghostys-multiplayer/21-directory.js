@@ -55,7 +55,11 @@
       this.closePeer();
       const peer = new root.Peer(DIRECTORY_ID);
       this.peer = peer;
+      const electionTimer = setTimeout(() => {
+        if (generation === this.generation) this.scheduleRetry();
+      }, 12000);
       peer.on("open", () => {
+        clearTimeout(electionTimer);
         if (generation !== this.generation) return;
         this.isCoordinator = true;
         this.connection = null;
@@ -64,6 +68,7 @@
       });
       peer.on("connection", (conn) => this.acceptClient(conn));
       peer.on("error", (error) => {
+        clearTimeout(electionTimer);
         if (generation !== this.generation || this.destroyed) return;
         if (error && error.type === "unavailable-id") this.openClient(generation);
         else {
@@ -71,7 +76,7 @@
           this.scheduleRetry();
         }
       });
-      peer.on("disconnected", () => { if (generation === this.generation) this.scheduleRetry(); });
+      peer.on("disconnected", () => { clearTimeout(electionTimer); if (generation === this.generation) this.scheduleRetry(); });
     }
 
     openClient(previousGeneration) {
@@ -85,15 +90,19 @@
         if (generation !== this.generation) return;
         const conn = peer.connect(DIRECTORY_ID, { reliable: true });
         this.connection = conn;
+        const connectTimer = setTimeout(() => {
+          if (generation === this.generation && !conn.open) this.scheduleRetry();
+        }, 10000);
         conn.on("open", () => {
+          clearTimeout(connectTimer);
           if (generation !== this.generation) return;
           this.dispatch("status", { state: "online", coordinator: false });
           this.sendHeartbeat();
           this.startHeartbeat();
         });
         conn.on("data", (message) => { if (generation === this.generation) this.handleDirectoryMessage(message); });
-        conn.on("close", () => { if (generation === this.generation) this.scheduleRetry(); });
-        conn.on("error", () => { if (generation === this.generation) this.scheduleRetry(); });
+        conn.on("close", () => { clearTimeout(connectTimer); if (generation === this.generation) this.scheduleRetry(); });
+        conn.on("error", () => { clearTimeout(connectTimer); if (generation === this.generation) this.scheduleRetry(); });
       });
       peer.on("error", () => { if (generation === this.generation) this.scheduleRetry(); });
       peer.on("disconnected", () => { if (generation === this.generation) this.scheduleRetry(); });

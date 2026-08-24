@@ -128,7 +128,7 @@
     async createRoom(options = {}) {
       if (!this.ready) await this.connect();
       if (!root.Peer) return;
-      this.leaveRoom(false);
+      this.leaveRoom(!!this.room);
       this.isHost = true;
       this.roomGenerationAttempt = 0;
       this.openHostPeer(options);
@@ -174,6 +174,8 @@
           return;
         }
         this.dispatch("error", { message: this.describePeerError(error) });
+        if (error && error.type === "network") return this.recoverPeer(peer);
+        this.leaveRoom(true);
       });
       peer.on("disconnected", () => {
         this.recoverPeer(peer);
@@ -186,7 +188,10 @@
         return;
       }
       const entry = { conn, playerId: null, openedAt: performance.now() };
-      const onClose = () => this.dropConnection(entry, "disconnected");
+      entry.joinTimer = setTimeout(() => {
+        if (!entry.playerId) { try { conn.close(); } catch (_) {} }
+      }, 10000);
+      const onClose = () => { clearTimeout(entry.joinTimer); this.dropConnection(entry, "disconnected"); };
       conn.on("open", () => {});
       conn.on("data", (message) => this.handleHostMessage(entry, message));
       conn.on("close", onClose);
@@ -197,8 +202,8 @@
       if (!message || typeof message !== "object" || typeof message.t !== "string") return;
       if (message.t === "join") {
         if (entry.playerId) return;
-        if (this.room.mode === "race" && Number(message.protocolVersion) !== ns.PROTOCOL_VERSION) {
-          this.safeSend(entry.conn, { t: "reject", message: "This Race room needs the latest GMP update" });
+        if (Number(message.protocolVersion) !== ns.PROTOCOL_VERSION) {
+          this.safeSend(entry.conn, { t: "reject", message: "This room needs the latest GMP update" });
           setTimeout(() => { try { entry.conn.close(); } catch (_) {} }, 30);
           return;
         }
@@ -219,6 +224,7 @@
           return;
         }
         entry.playerId = playerId;
+        clearTimeout(entry.joinTimer);
         this.connections.set(playerId, entry);
         const player = {
           playerId,
@@ -270,7 +276,7 @@
         this.dispatch("error", { message: "Enter a valid 6-character room code" });
         return;
       }
-      this.leaveRoom(false);
+      this.leaveRoom(!!this.room);
       this.isHost = false;
       this.room = { code: roomCode, ownerId: null, mode: "freeplay", visibility: "private", maxPlayers: 8, transport: "peerjs" };
       const peer = new root.Peer();
@@ -282,7 +288,8 @@
       });
       peer.on("error", (error) => {
         this.dispatch("error", { message: this.describePeerError(error, roomCode) });
-        if (error && (error.type === "peer-unavailable" || error.type === "network")) this.leaveRoom(false);
+        if (error?.type === "peer-unavailable" || (error?.type === "network" && !this.hostConnection?.open)) this.leaveRoom(true);
+        else if (error?.type === "network") this.recoverPeer(peer);
       });
       peer.on("disconnected", () => {
         this.recoverPeer(peer);
@@ -294,6 +301,11 @@
       const conn = this.peer.connect(PEER_PREFIX + roomCode);
       this.hostConnection = conn;
       let welcomed = false;
+      const joinTimer = setTimeout(() => {
+        if (welcomed || this.hostConnection !== conn) return;
+        this.dispatch("error", { message: `Timed out joining room ${roomCode}` });
+        this.leaveRoom(true);
+      }, 12000);
       conn.on("open", () => {
         this.safeSend(conn, {
           t: "join",
@@ -305,10 +317,15 @@
         });
       });
       conn.on("data", (message) => {
-        if (message?.t === "welcome") welcomed = true;
+        if (message?.t === "welcome") {
+          welcomed = true;
+          clearTimeout(joinTimer);
+        }
+        if (message?.t === "reject") clearTimeout(joinTimer);
         this.handleClientMessage(message);
       });
       const onClose = () => {
+        clearTimeout(joinTimer);
         if (!this.room || this.intentionalClose) return;
         const message = welcomed ? "Host disconnected — the room has closed" : `Could not join room ${roomCode}`;
         this.dispatch("error", { message });
@@ -331,7 +348,7 @@
         this.startPing();
       } else if (message.t === "reject") {
         this.dispatch("error", { message: message.message || "Could not join room" });
-        this.leaveRoom(false);
+        this.leaveRoom(true);
       } else if (message.t === "player_joined") {
         if (message.player) this.players.set(message.player.playerId, message.player);
         this.dispatch("player_joined", { player: message.player });
