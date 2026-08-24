@@ -2,13 +2,15 @@
   "use strict";
   root.GMPInternal = root.GMPInternal || {};
   Object.assign(root.GMPInternal, {
-    CLIENT_VERSION: "0.1.0-alpha.8",
-    PROTOCOL_VERSION: 1,
+    CLIENT_VERSION: "0.2.0-alpha.1",
+    PROTOCOL_VERSION: 2,
     STORAGE_KEYS: {
       playerId: "gmp.playerId",
       resumeToken: "gmp.resumeToken",
       username: "gmp.username",
-      settings: "gmp.settings"
+      settings: "gmp.settings",
+      friendCode: "gmp.friendCode",
+      friends: "gmp.friends"
     },
     clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));

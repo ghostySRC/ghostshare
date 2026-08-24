@@ -8,6 +8,7 @@
     "00-namespace.js",
     "10-snapshot-buffer.js",
     "20-network.js",
+    "21-directory.js",
     "30-adapter-1.4.4.js",
     "31-render-fix.js",
     "40-ui.js",
@@ -18,7 +19,7 @@
   ];
 
   const load = async (file) => {
-    const response = await fetch(`${base}${file}?v=0.1.0-alpha.8&t=${Date.now()}`, { cache: "no-store" });
+    const response = await fetch(`${base}${file}?v=0.2.0-alpha.1&t=${Date.now()}`, { cache: "no-store" });
     if (!response.ok) throw new Error(`Failed to fetch ${file} (${response.status})`);
     const code = await response.text();
     const id = `gmp-module-${file}`;

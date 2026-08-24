@@ -57,6 +57,7 @@
       this.pingStartedAt = 0;
       this.pingTimer = null;
       this.lastPingMs = null;
+      this.raceSession = null;
     }
 
     async connect() {
@@ -101,6 +102,10 @@
         case "player_state":
           this.sendPlayerState(payload.state);
           return true;
+        case "start_race":
+          return this.startRace(payload);
+        case "finish_race":
+          return this.finishRace(payload);
         default:
           return false;
       }
@@ -123,8 +128,9 @@
         code,
         ownerId: this.playerId,
         mode: options.mode === "race" ? "race" : "freeplay",
-        visibility: "private",
+        visibility: options.visibility === "public" ? "public" : "private",
         maxPlayers: Math.max(2, Math.min(8, Number(options.maxPlayers) || 8)),
+        layout: /^Level \d+$/.test(String(options.layout || "")) ? String(options.layout) : "",
         transport: "peerjs"
       };
       this.players = new Map([[this.playerId, this.selfProfile(true)]]);
@@ -195,7 +201,8 @@
         this.safeSend(entry.conn, {
           t: "welcome",
           room: { ...this.room },
-          players: Array.from(this.players.values())
+          players: Array.from(this.players.values()),
+          raceSession: this.raceSession
         });
         this.broadcast({ t: "player_joined", player }, playerId);
         this.dispatch("player_joined", { player });
@@ -218,6 +225,8 @@
         this.dispatch("profile_updated", packet);
       } else if (message.t === "ping") {
         this.safeSend(entry.conn, { t: "pong", nonce: message.nonce });
+      } else if (message.t === "race_finish") {
+        this.recordRaceFinish(entry.playerId, message);
       } else if (message.t === "leave") {
         try { entry.conn.close(); } catch (_) {}
       }
@@ -280,6 +289,10 @@
         this.room = { ...this.room, ...(message.room || {}) };
         this.players = new Map((message.players || []).map((p) => [p.playerId, p]));
         this.dispatch("room_joined", { resumed: false, room: { ...this.room }, players: Array.from(this.players.values()) });
+        if (message.raceSession) {
+          this.raceSession = message.raceSession;
+          this.dispatch("race_started", message.raceSession);
+        }
         this.startPing();
       } else if (message.t === "reject") {
         this.dispatch("error", { message: message.message || "Could not join room" });
@@ -296,6 +309,12 @@
         this.dispatch("profile_updated", { playerId: message.playerId, username: message.username });
       } else if (message.t === "player_state") {
         this.dispatch("player_state", message);
+      } else if (message.t === "race_start") {
+        this.raceSession = message.session || {};
+        this.dispatch("race_started", this.raceSession);
+      } else if (message.t === "race_results") {
+        if (this.raceSession && this.raceSession.raceId === message.raceId) this.raceSession.results = message.results;
+        this.dispatch("race_results", { raceId: message.raceId, results: Array.isArray(message.results) ? message.results : [] });
       } else if (message.t === "pong" && message.nonce === this.pingNonce) {
         this.lastPingMs = Math.max(0, Math.round(performance.now() - this.pingStartedAt));
         this.dispatch("ping", { pingMs: this.lastPingMs });
@@ -326,6 +345,54 @@
       } else if (this.hostConnection) {
         this.safeSend(this.hostConnection, { t: "state", state });
       }
+    }
+
+    startRace(options = {}) {
+      if (!this.room || !this.isHost || this.room.mode !== "race") return false;
+      const layout = /^Level \d+$/.test(String(options.layout || "")) ? String(options.layout) : "Level 1";
+      const countdownMs = Math.max(1000, Math.min(10000, Number(options.countdownMs) || 3000));
+      this.room.layout = layout;
+      this.raceSession = {
+        raceId: ns.randomId(),
+        layout,
+        countdownMs,
+        startedAt: Date.now(),
+        results: []
+      };
+      const session = { ...this.raceSession, results: [] };
+      this.broadcast({ t: "race_start", session });
+      this.dispatch("race_started", session);
+      return true;
+    }
+
+    finishRace(payload = {}) {
+      if (!this.room || this.room.mode !== "race" || !this.raceSession) return false;
+      if (this.isHost) return this.recordRaceFinish(this.playerId, payload);
+      return this.safeSend(this.hostConnection, {
+        t: "race_finish",
+        raceId: String(payload.raceId || ""),
+        timeMs: Number(payload.timeMs)
+      });
+    }
+
+    recordRaceFinish(playerId, payload = {}) {
+      const race = this.raceSession;
+      if (!race || String(payload.raceId || "") !== race.raceId) return false;
+      if (race.results.some((result) => result.playerId === playerId)) return false;
+      const timeMs = Math.max(0, Math.min(3600000, Math.round(Number(payload.timeMs))));
+      if (!Number.isFinite(timeMs)) return false;
+      const player = this.players.get(playerId);
+      const result = {
+        playerId,
+        username: player?.username || "Player",
+        timeMs,
+        placement: race.results.length + 1
+      };
+      race.results.push(result);
+      const packet = { t: "race_results", raceId: race.raceId, results: race.results.slice() };
+      this.broadcast(packet);
+      this.dispatch("race_results", packet);
+      return true;
     }
 
     sanitizeState(state) {
@@ -400,6 +467,7 @@
       this.players.clear();
       this.room = null;
       this.isHost = false;
+      this.raceSession = null;
     }
 
     selfProfile(isOwner) {
@@ -460,7 +528,7 @@
     }
   }
 
-  Object.assign(ns, { PeerRoomTransport, randomRoomCode, cleanUsername });
+  Object.assign(ns, { PeerRoomTransport, randomRoomCode, cleanUsername, loadPeerJs });
   if (typeof module !== "undefined" && module.exports) {
     module.exports = { PeerRoomTransport, randomRoomCode, cleanUsername };
   }

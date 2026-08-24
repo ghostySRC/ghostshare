@@ -6,6 +6,17 @@
 
   const PATCH_NOTES = [
     {
+      version: "0.2.0-alpha.1",
+      title: "Every multiplayer tab works",
+      changes: [
+        "Enabled Race rooms with synchronized level starts, countdowns, end-flag finish detection and live results.",
+        "Added public Freeplay and Race room publishing, browsing, refreshing and one-click joining without a dedicated server.",
+        "Added persistent friend codes, online presence, room status, joining and removal controls.",
+        "Rebuilt tab navigation so Lobby, Race, Browse, Friends and Patch Notes behave as real independent views.",
+        "Hardened room visibility, race packet validation, directory cleanup and loader updates."
+      ]
+    },
+    {
       version: "0.1.0-alpha.8",
       title: "Real player animation sync",
       changes: [
@@ -109,15 +120,9 @@
       const body = this.panel.querySelector(".gmp-body");
       if (!tabs || !body || body.querySelector("#gmp-patch-notes-view")) return;
 
-      const existingChildren = Array.from(body.childNodes);
-      const lobbyView = document.createElement("div");
-      lobbyView.id = "gmp-lobby-view";
-      for (const child of existingChildren) lobbyView.appendChild(child);
-      body.appendChild(lobbyView);
-
       const patchView = document.createElement("div");
       patchView.id = "gmp-patch-notes-view";
-      patchView.style.display = "none";
+      patchView.className = "gmp-view";
 
       const header = document.createElement("div");
       header.className = "gmp-patch-header";
@@ -156,28 +161,11 @@
       }
       body.appendChild(patchView);
 
-      const lobbyTab = tabs.querySelector(".gmp-tab");
-      const patchTab = document.createElement("button");
-      patchTab.className = "gmp-tab";
+      const patchTab = this.addTab("patchNotes", "Patch Notes", patchView);
       patchTab.id = "gmp-patch-notes-tab";
-      patchTab.textContent = "Patch Notes";
       patchTab.title = "View Ghosty's Multiplayer update history";
-      tabs.appendChild(patchTab);
-
-      const show = (page) => {
-        const patches = page === "patches";
-        lobbyView.style.display = patches ? "none" : "block";
-        patchView.style.display = patches ? "block" : "none";
-        for (const tab of tabs.querySelectorAll(".gmp-tab")) tab.classList.remove("active");
-        (patches ? patchTab : lobbyTab)?.classList.add("active");
-        body.scrollTop = 0;
-      };
-
-      lobbyTab?.addEventListener("click", () => show("lobby"));
-      patchTab.addEventListener("click", () => show("patches"));
       this.refs.patchNotesTab = patchTab;
       this.refs.patchNotesView = patchView;
-      this.refs.lobbyView = lobbyView;
     }
   }
 

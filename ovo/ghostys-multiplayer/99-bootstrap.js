@@ -53,7 +53,7 @@
 
     const version = getGameVersion();
     if (version !== "1.4.4") {
-      alert(`Ghosty's Multiplayer ${ns.CLIENT_VERSION}: ${version} is not supported yet. v0.1 currently targets OvO 1.4.4.`);
+      alert(`Ghosty's Multiplayer ${ns.CLIENT_VERSION}: ${version} is not supported yet. This build targets OvO 1.4.4.`);
       return;
     }
 

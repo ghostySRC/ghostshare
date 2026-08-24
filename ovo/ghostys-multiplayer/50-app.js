@@ -15,16 +15,32 @@
       this.playerId = ns.randomId();
       this.resumeToken = ns.randomId();
       this.username = localStorage.getItem(ns.STORAGE_KEYS.username) || "OvO Player";
+      this.friendCode = ns.cleanFriendCode(localStorage.getItem(ns.STORAGE_KEYS.friendCode));
+      if (this.friendCode.length < 6) {
+        this.friendCode = ns.randomFriendCode();
+        localStorage.setItem(ns.STORAGE_KEYS.friendCode, this.friendCode);
+      }
+      this.friends = ns.safeJsonParse(localStorage.getItem(ns.STORAGE_KEYS.friends), []);
+      if (!Array.isArray(this.friends)) this.friends = [];
+      this.presences = [];
+      this.publicRooms = [];
       this.room = null;
       this.players = new Map();
       this.buffers = new Map();
       this.lastLayout = runtime.running_layout && runtime.running_layout.name;
       this.sendTimer = null;
       this.destroyed = false;
+      this.race = null;
 
       this.adapter = new ns.OvO144Adapter(runtime);
-      this.ui = new ns.GhostyUI({ username: this.username });
+      this.ui = new ns.GhostyUI({ username: this.username, playerId: this.playerId, layouts: this.adapter.listRaceLayouts() });
+      this.ui.setFriendCode(this.friendCode);
+      this.ui.setFriends(this.friends, []);
       this.socket = null;
+      this.directory = new ns.PeerDirectory({ playerId: this.playerId, friendCode: this.friendCode, username: this.username });
+      this.bindDirectory();
+      this.directory.setWatching(this.friends.map((friend) => friend.friendCode));
+      this.directory.connect();
       this.bindUi();
       this.connectSocket();
       this.runtime.tickMe(this);
@@ -40,16 +56,63 @@
         localStorage.setItem(ns.STORAGE_KEYS.username, username);
         this.ui.setUsername(username);
         this.socket?.setUsername(username);
+        this.directory?.setProfile(username, this.friendCode);
+        this.updateDirectoryPresence();
         if (this.room) this.adapter.updateLocalPlayerLabel(username);
         this.ui.toast("Username saved");
       });
-      this.ui.addEventListener("create_room", () => this.socket?.send("create_room", { mode: "freeplay", visibility: "private", maxPlayers: 8 }));
+      this.ui.addEventListener("create_room", (e) => this.socket?.send("create_room", {
+        mode: e.detail.mode === "race" ? "race" : "freeplay",
+        visibility: e.detail.visibility === "public" ? "public" : "private",
+        layout: e.detail.layout || "",
+        maxPlayers: 8
+      }));
       this.ui.addEventListener("join_room", (e) => {
         const code = String(e.detail.roomCode || "").trim().toUpperCase();
         if (!/^[A-Z0-9]{6}$/.test(code)) return this.ui.toast("Enter a 6-character room code");
         this.socket?.send("join_room", { roomCode: code });
       });
       this.ui.addEventListener("leave_room", () => this.socket?.send("leave_room", {}));
+      this.ui.addEventListener("start_race", (e) => {
+        if (!this.room || this.room.mode !== "race") return this.ui.toast("Create or join a Race room first");
+        if (this.room.ownerId !== this.playerId) return this.ui.toast("Only the room owner can start the race");
+        this.socket?.send("start_race", { layout: e.detail.layout, countdownMs: 3000 });
+      });
+      this.ui.addEventListener("refresh_rooms", () => this.directory?.refresh());
+      this.ui.addEventListener("add_friend", (e) => this.addFriend(e.detail.friendCode));
+      this.ui.addEventListener("remove_friend", (e) => this.removeFriend(e.detail.friendCode));
+    }
+
+    bindDirectory() {
+      this.directory.addEventListener("snapshot", (e) => {
+        this.publicRooms = (e.detail.rooms || []).filter((room) => room.code !== this.room?.code);
+        this.presences = e.detail.presences || [];
+        this.ui.setPublicRooms(this.publicRooms);
+        this.ui.setFriends(this.friends, this.presences);
+      });
+      this.directory.addEventListener("error", (e) => console.warn("[GMP] Directory:", e.detail.message));
+    }
+
+    addFriend(rawCode) {
+      const friendCode = ns.cleanFriendCode(rawCode);
+      if (friendCode.length < 6) return this.ui.toast("Enter a valid friend code");
+      if (friendCode === this.friendCode) return this.ui.toast("That is your own friend code");
+      if (this.friends.some((friend) => friend.friendCode === friendCode)) return this.ui.toast("Friend is already added");
+      this.friends.push({ friendCode });
+      this.saveFriends();
+      this.ui.toast("Friend added");
+      this.directory.refresh();
+    }
+
+    removeFriend(friendCode) {
+      this.friends = this.friends.filter((friend) => friend.friendCode !== friendCode);
+      this.saveFriends();
+    }
+
+    saveFriends() {
+      localStorage.setItem(ns.STORAGE_KEYS.friends, JSON.stringify(this.friends));
+      this.ui.setFriends(this.friends, this.presences);
+      this.directory?.setWatching(this.friends.map((friend) => friend.friendCode));
     }
 
     cleanUsername(value) {
@@ -81,6 +144,7 @@
         this.players.set(player.playerId, player);
         this.ui.upsertPlayer(player);
         if (player.playerId !== this.playerId) this.ui.toast(`${player.username} joined`);
+        this.updateDirectoryPresence();
       });
       socket.addEventListener("player_left", (e) => {
         const id = e.detail.playerId;
@@ -89,6 +153,7 @@
         this.players.delete(id);
         this.ui.removePlayer(id);
         if (player && id !== this.playerId) this.ui.toast(`${player.username} left`);
+        this.updateDirectoryPresence();
       });
       socket.addEventListener("player_connection", (e) => {
         const player = this.players.get(e.detail.playerId);
@@ -111,6 +176,11 @@
         this.ui.setPlayers(Array.from(this.players.values()));
       });
       socket.addEventListener("player_state", (e) => this.handlePlayerState(e.detail));
+      socket.addEventListener("race_started", (e) => this.handleRaceStarted(e.detail));
+      socket.addEventListener("race_results", (e) => {
+        if (this.race && e.detail.raceId === this.race.raceId) this.race.results = e.detail.results || [];
+        this.ui.setRaceResults(e.detail.results || []);
+      });
       socket.addEventListener("error", (e) => this.ui.toast(e.detail.message || "Multiplayer error"));
     }
 
@@ -122,6 +192,8 @@
       this.players = new Map((message.players || []).map((p) => [p.playerId, p]));
       this.ui.setRoom(this.room);
       this.ui.setPlayers(Array.from(this.players.values()));
+      if (this.room.mode === "race") this.ui.showTab("race");
+      this.updateDirectoryPresence();
       const url = new URL(location.href);
       url.searchParams.set("gmpRoom", this.room.code);
       history.replaceState({}, "", url);
@@ -137,6 +209,11 @@
       this.adapter.setMultiplayerActive(false);
       this.ui.setRoom(null);
       this.ui.setPlayers([]);
+      this.race = null;
+      this.ui.setRaceState({ label: "READY", message: "Create or join a Race room first." });
+      this.ui.setRaceResults([]);
+      this.adapter.setLocalControlsEnabled(true);
+      this.updateDirectoryPresence();
       const url = new URL(location.href);
       url.searchParams.delete("gmpRoom");
       history.replaceState({}, "", url);
@@ -154,6 +231,43 @@
         this.buffers.set(message.playerId, buffer);
       }
       buffer.push({ ...message.state, username: message.username || message.state.username });
+    }
+
+    handleRaceStarted(session) {
+      if (!session || !session.raceId || !/^Level \d+$/.test(String(session.layout || ""))) return;
+      const countdownMs = Math.max(1000, Math.min(10000, Number(session.countdownMs) || 3000));
+      this.race = {
+        raceId: session.raceId,
+        layout: session.layout,
+        countdownEnd: performance.now() + countdownMs,
+        startTime: 0,
+        finished: false,
+        finishWasOverlapping: false,
+        results: Array.isArray(session.results) ? session.results : []
+      };
+      this.room.layout = session.layout;
+      this.ui.setRoom(this.room);
+      this.updateDirectoryPresence();
+      this.ui.setRaceResults(this.race.results);
+      this.ui.showTab("race");
+      this.ui.setOpen(false);
+      this.adapter.changeLayout(session.layout);
+      this.ui.toast(`Race starting on ${session.layout}`);
+    }
+
+    updateDirectoryPresence() {
+      const playerCount = this.players.size;
+      this.directory?.setPresence({
+        roomCode: this.room?.code || "",
+        mode: this.room?.mode || "freeplay",
+        visibility: this.room?.visibility || "private",
+        playerCount
+      });
+      this.directory?.setHostedRoom(this.room && this.socket?.isHost ? {
+        ...this.room,
+        ownerUsername: this.username,
+        playerCount
+      } : null);
     }
 
     startStateLoop() {
@@ -176,11 +290,39 @@
         this.adapter.destroyBuiltInGhosts();
         this.adapter.updateLocalPlayerLabel(this.username);
       }
+      this.tickRace();
       const now = performance.now();
       for (const [playerId, buffer] of this.buffers.entries()) {
         const state = buffer.sample(now);
         if (state) this.adapter.updateRemotePlayer(playerId, state);
       }
+    }
+
+    tickRace() {
+      const race = this.race;
+      if (!race || !this.room || this.room.mode !== "race") return;
+      const now = performance.now();
+      const remaining = race.countdownEnd - now;
+      if (remaining > 0) {
+        this.adapter.setLocalControlsEnabled(false);
+        this.ui.setRaceState({ label: String(Math.ceil(remaining / 1000)), message: `${race.layout} starts in…` });
+        return;
+      }
+      if (!race.startTime) {
+        race.startTime = now;
+        this.adapter.setLocalControlsEnabled(true);
+        this.ui.setRaceState({ label: "GO!", message: `Race in progress on ${race.layout}` });
+      }
+      if (race.finished || this.adapter.currentLayout() !== race.layout) return;
+      const overlapping = this.adapter.isAtFinish();
+      if (overlapping && !race.finishWasOverlapping) {
+        race.finished = true;
+        const timeMs = Math.max(0, Math.round(now - race.startTime));
+        this.socket?.send("finish_race", { raceId: race.raceId, timeMs });
+        this.ui.setRaceState({ label: this.ui.formatTime(timeMs), message: "Finished! Waiting for the other racers." });
+        this.ui.toast(`Finished in ${this.ui.formatTime(timeMs)}`);
+      }
+      race.finishWasOverlapping = overlapping;
     }
 
     removeRemotePlayer(playerId) {
@@ -200,6 +342,8 @@
       this.destroyed = true;
       clearInterval(this.sendTimer);
       this.socket?.disconnect();
+      this.directory?.destroy();
+      this.adapter.setLocalControlsEnabled(true);
       this.adapter.destroyAllRemotePlayers();
       this.adapter.setMultiplayerActive(false);
       this.adapter.destroyLocalLabels();

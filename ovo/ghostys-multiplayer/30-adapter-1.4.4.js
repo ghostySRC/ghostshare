@@ -9,6 +9,7 @@
       this.textType = null;
       this.globalType = null;
       this.ghostArrayType = null;
+      this.endFlagType = null;
       this.remoteInstances = new Map();
       this.localLabels = null;
       this.localPlayerUid = null;
@@ -38,6 +39,11 @@
         x.plugin instanceof root.cr.plugins_.Arr && x.default_instance &&
         x.default_instance[5] && x.default_instance[5][1] === 6
       ) || null;
+      this.endFlagType = runtime.types_by_index.find((x) =>
+        x.animations && x.animations[0] && x.animations[0].frames &&
+        x.animations[0].frames[0] &&
+        String(x.animations[0].frames[0].texture_file || "").includes("endflag")
+      ) || null;
       if (!this.playerType || !this.textType || !this.globalType) {
         throw new Error("Ghosty's Multiplayer could not resolve OvO 1.4.4 runtime types.");
       }
@@ -50,7 +56,7 @@
     getLocalPlayer() {
       return this.playerType.instances.find((x) =>
         x && x.instance_vars && x.instance_vars[17] === "" &&
-        x.behavior_insts && x.behavior_insts[0] && x.behavior_insts[0].enabled &&
+        x.behavior_insts && x.behavior_insts[0] &&
         !x.__gmpRemote
       ) || null;
     }
@@ -82,6 +88,34 @@
         layer: player.layer && player.layer.name || "Game",
         username
       };
+    }
+
+    listRaceLayouts() {
+      return Object.keys(this.runtime.layouts || {})
+        .filter((name) => /^Level \d+$/.test(name))
+        .sort((a, b) => Number(a.slice(6)) - Number(b.slice(6)));
+    }
+
+    changeLayout(name) {
+      const layout = this.runtime.layouts && this.runtime.layouts[name];
+      if (!layout) return false;
+      this.runtime.changelayout = layout;
+      return true;
+    }
+
+    setLocalControlsEnabled(enabled) {
+      const player = this.getLocalPlayer();
+      if (!player || !player.behavior_insts || !player.behavior_insts[0]) return false;
+      player.behavior_insts[0].enabled = !!enabled;
+      return true;
+    }
+
+    isAtFinish() {
+      const player = this.getLocalPlayer();
+      if (!player || !this.endFlagType || !this.endFlagType.instances) return false;
+      return this.endFlagType.instances.some((flag) => {
+        try { return !!this.runtime.testOverlap(player, flag); } catch (_) { return false; }
+      });
     }
 
     setMultiplayerActive(active) {
