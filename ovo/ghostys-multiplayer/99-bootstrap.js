@@ -1,6 +1,8 @@
 (function (root) {
   "use strict";
   const ns = root.GMPInternal;
+  const bootGeneration = (root.__gmpBootGeneration || 0) + 1;
+  root.__gmpBootGeneration = bootGeneration;
   if (root.ghostysMultiplayer && root.ghostysMultiplayer.destroy) {
     root.ghostysMultiplayer.destroy();
   }
@@ -31,6 +33,7 @@
   }
 
   function boot() {
+    if (root.__gmpBootGeneration !== bootGeneration) return;
     if (disableOldMultiplayerIfNeeded()) return;
     if (document.getElementById("ovo-multiplayer-toggle-button")) {
       if (!sessionStorage.getItem("gmp.legacyReloadAttempted")) {
@@ -55,6 +58,9 @@
     }
 
     try {
+      if (root.ghostysMultiplayer && root.ghostysMultiplayer.destroy) {
+        root.ghostysMultiplayer.destroy();
+      }
       root.ghostysMultiplayer = new ns.GhostysMultiplayerApp(runtime, version);
       console.log(`[GMP] Ghosty's Multiplayer ${ns.CLIENT_VERSION} loaded for OvO ${version}`);
     } catch (error) {

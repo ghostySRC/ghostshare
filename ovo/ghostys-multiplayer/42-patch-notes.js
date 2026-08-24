@@ -12,7 +12,8 @@
         "Fixed movement states such as run, jump and idle being converted to zero during network validation.",
         "Added interpolated limb-pose synchronization so remote players match the sender instead of freezing in OvO's ghost pose.",
         "Removed the forced 50% replay-ghost opacity and stopped default body parts appearing underneath custom skins.",
-        "Hardened local username labels, room cleanup and same-page loader updates."
+        "Hardened local username labels, host-disconnect cleanup and same-page loader updates.",
+        "Fixed early Create Room and username clicks being ignored while PeerJS was still loading."
       ]
     },
     {

@@ -85,7 +85,6 @@
     }
 
     send(type, payload = {}) {
-      if (!this.ready && type !== "hello") return false;
       switch (type) {
         case "create_room":
           this.createRoom(payload);
@@ -269,7 +268,7 @@
         if (!this.room || this.intentionalClose) return;
         const message = welcomed ? "Host disconnected — the room has closed" : `Could not join room ${roomCode}`;
         this.dispatch("error", { message });
-        this.leaveRoom(false);
+        this.leaveRoom(true);
       };
       conn.on("close", onClose);
       conn.on("error", onClose);
