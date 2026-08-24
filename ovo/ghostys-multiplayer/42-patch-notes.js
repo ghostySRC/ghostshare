@@ -6,6 +6,15 @@
 
   const PATCH_NOTES = [
     {
+      version: "0.2.0-alpha.6",
+      title: "Stay in the room",
+      changes: [
+        "Kept non-host clients in their current room when they refresh or re-run the auto-updating loader.",
+        "Updated public Freeplay listings whenever the host changes levels.",
+        "Clarified the empty Browse message for both public Freeplay and Race rooms."
+      ]
+    },
+    {
       version: "0.2.0-alpha.5",
       title: "Leak-free auto updates",
       changes: [

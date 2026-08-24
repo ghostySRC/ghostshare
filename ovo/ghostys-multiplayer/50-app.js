@@ -202,6 +202,8 @@
       this.updateDirectoryPresence();
       const url = new URL(location.href);
       url.searchParams.set("gmpRoom", this.room.code);
+      if (this.socket?.isHost) url.searchParams.delete("gmpAutoJoin");
+      else url.searchParams.set("gmpAutoJoin", "1");
       history.replaceState({}, "", url);
       this.adapter.updateLocalPlayerLabel(this.username);
       if (!message.resumed) this.ui.toast(`Joined ${this.room.code}`);
@@ -278,6 +280,7 @@
       });
       this.directory?.setHostedRoom(this.room && this.socket?.isHost ? {
         ...this.room,
+        layout: this.room.mode === "freeplay" ? this.adapter.currentLayout() : this.room.layout,
         ownerUsername: this.username,
         playerCount
       } : null);
@@ -298,6 +301,7 @@
       if (layout !== this.lastLayout) {
         this.lastLayout = layout;
         this.adapter.handleLayoutChange();
+        this.updateDirectoryPresence();
       }
       if (this.room) {
         this.adapter.destroyBuiltInGhosts();
