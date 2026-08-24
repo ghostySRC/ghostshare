@@ -115,6 +115,7 @@
 
     handleRoomJoined(message) {
       this.room = message.room;
+      this.adapter.setMultiplayerActive(true);
       this.players = new Map((message.players || []).map((p) => [p.playerId, p]));
       this.ui.setRoom(this.room);
       this.ui.setPlayers(Array.from(this.players.values()));
@@ -126,6 +127,7 @@
 
     handleRoomLeft() {
       this.room = null;
+      this.adapter.setMultiplayerActive(false);
       this.players.clear();
       for (const id of Array.from(this.buffers.keys())) this.removeRemotePlayer(id);
       this.ui.setRoom(null);
@@ -163,7 +165,11 @@
       const layout = this.adapter.currentLayout();
       if (layout !== this.lastLayout) {
         this.lastLayout = layout;
-        this.adapter.destroyAllRemotePlayers();
+        this.adapter.handleLayoutChange();
+      }
+      if (this.room) {
+        this.adapter.destroyBuiltInGhosts();
+        this.adapter.updateLocalPlayerLabel(this.username);
       }
       const now = performance.now();
       for (const [playerId, buffer] of this.buffers.entries()) {
@@ -189,7 +195,9 @@
       this.destroyed = true;
       clearInterval(this.sendTimer);
       this.socket?.disconnect();
+      this.adapter.setMultiplayerActive(false);
       this.adapter.destroyAllRemotePlayers();
+      this.adapter.destroyLocalLabels();
       this.ui.destroy();
     }
   }

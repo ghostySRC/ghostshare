@@ -8,7 +8,12 @@
       this.playerType = null;
       this.textType = null;
       this.globalType = null;
+      this.ghostArrayType = null;
       this.remoteInstances = new Map();
+      this.localLabels = null;
+      this.localPlayerUid = null;
+      this.multiplayerActive = false;
+      this.disabledGhostActions = null;
       this.resolveTypes();
     }
 
@@ -28,6 +33,11 @@
         root.cr && root.cr.plugins_ && root.cr.plugins_.Globals &&
         x.plugin instanceof root.cr.plugins_.Globals && x.instvar_sids && x.instvar_sids.length === 24
       );
+      this.ghostArrayType = runtime.types_by_index.find((x) =>
+        root.cr && root.cr.plugins_ && root.cr.plugins_.Arr &&
+        x.plugin instanceof root.cr.plugins_.Arr && x.default_instance &&
+        x.default_instance[5] && x.default_instance[5][1] === 6
+      ) || null;
       if (!this.playerType || !this.textType || !this.globalType) {
         throw new Error("Ghosty's Multiplayer could not resolve OvO 1.4.4 runtime types.");
       }
@@ -73,6 +83,85 @@
       };
     }
 
+    setMultiplayerActive(active) {
+      this.multiplayerActive = !!active;
+      if (this.multiplayerActive) {
+        this.disableBuiltInGhosts();
+        this.destroyBuiltInGhosts();
+      } else {
+        this.destroyLocalLabels();
+        this.restoreBuiltInGhosts();
+      }
+    }
+
+    disableBuiltInGhosts() {
+      if (this.disabledGhostActions) return;
+      try {
+        const actions = this.runtime.eventsheets.Player.events[2]
+          .subevents[2].subevents[1].actions;
+        this.disabledGhostActions = { actions, saved: actions.slice() };
+        actions.length = 0;
+      } catch (_) {
+        this.disabledGhostActions = null;
+      }
+    }
+
+    restoreBuiltInGhosts() {
+      if (!this.disabledGhostActions) return;
+      const { actions, saved } = this.disabledGhostActions;
+      actions.push(...saved);
+      this.disabledGhostActions = null;
+    }
+
+    destroyBuiltInGhosts() {
+      if (!this.multiplayerActive) return;
+      const ghosts = this.playerType.instances.filter((instance) =>
+        instance && !instance.__gmpRemote && instance.instance_vars &&
+        instance.instance_vars[16] && instance.instance_vars[17] !== ""
+      );
+      for (const ghost of ghosts) {
+        try {
+          this.resetSiblingSkins(ghost);
+          this.runtime.DestroyInstance(ghost);
+        } catch (_) {}
+      }
+      const ghostArray = this.ghostArrayType && this.ghostArrayType.instances
+        ? this.ghostArrayType.instances[0]
+        : null;
+      try {
+        if (ghostArray && typeof ghostArray.setSize === "function") {
+          ghostArray.setSize(0, ghostArray.cy, ghostArray.cz);
+        }
+      } catch (_) {}
+    }
+
+    updateLocalPlayerLabel(username) {
+      if (!this.multiplayerActive) return this.destroyLocalLabels();
+      const player = this.getLocalPlayer();
+      if (!player || !player.layer) return this.destroyLocalLabels();
+      if (!this.localLabels || this.localPlayerUid !== player.uid) {
+        this.destroyLocalLabels();
+        this.localPlayerUid = player.uid;
+        this.localLabels = this.createLabels(player.layer, username || "Player", player.x, player.y);
+      }
+      this.updateLabels(this.localLabels, username || "Player", player.x, player.y);
+    }
+
+    destroyLocalLabels() {
+      this.destroyLabels(this.localLabels);
+      this.localLabels = null;
+      this.localPlayerUid = null;
+    }
+
+    handleLayoutChange() {
+      this.destroyAllRemotePlayers();
+      this.destroyLocalLabels();
+      if (this.multiplayerActive) {
+        this.disableBuiltInGhosts();
+        this.destroyBuiltInGhosts();
+      }
+    }
+
     createRemotePlayer(playerId, state) {
       if (!state || !state.active || state.layout !== this.currentLayout()) return null;
       if (!Number.isFinite(state.x) || !Number.isFinite(state.y)) return null;
@@ -110,15 +199,19 @@
           this.runtime.DestroyInstance(remote.instance);
         }
       } catch (_) {}
-      for (const label of remote.labels || []) {
-        try { this.runtime.DestroyInstance(label); } catch (_) {}
-      }
+      this.destroyLabels(remote.labels);
       if (typeof playerId === "string") this.remoteInstances.delete(playerId);
       else if (remote.playerId) this.remoteInstances.delete(remote.playerId);
     }
 
     destroyAllRemotePlayers() {
       for (const id of Array.from(this.remoteInstances.keys())) this.destroyRemotePlayer(id);
+    }
+
+    destroyLabels(labels) {
+      for (const label of labels || []) {
+        try { this.runtime.DestroyInstance(label); } catch (_) {}
+      }
     }
 
     updateRemotePlayer(playerId, state) {

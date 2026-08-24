@@ -6,6 +6,15 @@
 
   const PATCH_NOTES = [
     {
+      version: "0.1.0-alpha.7",
+      title: "Clean player rendering",
+      changes: [
+        "Removed OvO's built-in replay ghost while a multiplayer room is active, preventing duplicate grey players.",
+        "Added the local player's own outlined username above their character.",
+        "Restored OvO's replay-ghost behavior and removed the local label after leaving a room."
+      ]
+    },
+    {
       version: "0.1.0-alpha.6",
       title: "Patch notes arrive",
       changes: [
