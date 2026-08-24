@@ -6,6 +6,15 @@
 
   const PATCH_NOTES = [
     {
+      version: "0.2.0-alpha.9",
+      title: "Level and respawn safety",
+      changes: [
+        "Stopped a recycled remote collider from being mistaken for and deleting the real player after entering the next level.",
+        "Cleared stale remote-player markers when OvO reuses an object during respawn or a layout transition.",
+        "Guarded delayed skin passes so they cannot modify a recycled local player."
+      ]
+    },
+    {
       version: "0.2.0-alpha.8",
       title: "No more stale players",
       changes: [

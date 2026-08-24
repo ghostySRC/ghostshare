@@ -58,11 +58,15 @@
     }
 
     getLocalPlayer() {
-      return this.playerType.instances.find((x) =>
-        x && x.instance_vars && x.instance_vars[17] === "" &&
-        x.behavior_insts && x.behavior_insts[0] &&
-        !x.__gmpRemote
-      ) || null;
+      return this.playerType.instances.find((x) => {
+        if (!x) return false;
+        if (x.__gmpRemote && x.__gmpRemoteUid !== x.uid) {
+          x.__gmpRemote = false;
+          x.__gmpRemoteUid = null;
+        }
+        return x.instance_vars && x.instance_vars[17] === "" &&
+          x.behavior_insts && x.behavior_insts[0] && !x.__gmpRemote;
+      }) || null;
     }
 
     getLocalState(username) {
@@ -215,6 +219,7 @@
 
       const instance = this.runtime.createInstance(this.playerType, layer, state.x, state.y);
       instance.__gmpRemote = true;
+      instance.__gmpRemoteUid = instance.uid;
       instance.visible = false;
       if (instance.behavior_insts && instance.behavior_insts[0]) {
         instance.behavior_insts[0].enabled = false;
@@ -228,6 +233,7 @@
       const remote = {
         playerId,
         instance,
+        instanceUid: instance.uid,
         labels: this.createLabels(layer, state.username || "Player", state.x, state.y, playerId),
         skin: null,
         side: null,
@@ -242,9 +248,12 @@
       const remote = typeof playerId === "string" ? this.remoteInstances.get(playerId) : playerId;
       if (!remote) return;
       try {
-        if (remote.instance) {
+        if (this.remoteInstanceIsLive(remote)) {
           this.destroySkinObjects(remote.instance, remote.playerId);
           this.runtime.DestroyInstance(remote.instance);
+        } else if (remote.instance && remote.instance.__gmpRemoteUid !== remote.instance.uid) {
+          remote.instance.__gmpRemote = false;
+          remote.instance.__gmpRemoteUid = null;
         }
       } catch (_) {}
       this.destroyLabels(remote.labels);
@@ -273,6 +282,10 @@
       if (!this.isPlayableLayout() || !state || !state.active || state.layout !== this.currentLayout()) {
         if (remote) this.destroyRemotePlayer(playerId);
         return;
+      }
+      if (remote && !this.remoteInstanceIsLive(remote)) {
+        this.destroyRemotePlayer(playerId);
+        remote = null;
       }
       if (!remote) remote = this.createRemotePlayer(playerId, state);
       if (!remote || !remote.instance) return;
@@ -309,6 +322,11 @@
       }
       this.updateLabels(remote.labels, state.username || "Player", state.x, state.y);
       instance.set_bbox_changed();
+    }
+
+    remoteInstanceIsLive(remote) {
+      return !!(remote && remote.instance && remote.instance.uid === remote.instanceUid &&
+        remote.instance.__gmpRemote === true && remote.instance.__gmpRemoteUid === remote.instanceUid);
     }
 
     updateRemoteUsername(playerId, username) {

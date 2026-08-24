@@ -13,7 +13,7 @@
     if (remote.instance.instance_vars) remote.instance.instance_vars[12] = skin;
 
     const applyPass = () => {
-      if (!remote.instance || this.remoteInstances.get(remote.playerId) !== remote) return;
+      if (!this.remoteInstanceIsLive(remote) || this.remoteInstances.get(remote.playerId) !== remote) return;
       for (const sibling of remote.instance.siblings || []) {
         for (const behavior of sibling.behaviorSkins || []) {
           if (!behavior) continue;
