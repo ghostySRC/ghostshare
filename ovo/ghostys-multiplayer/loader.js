@@ -19,7 +19,7 @@
   ];
 
   const load = async (file) => {
-    const response = await fetch(`${base}${file}?v=0.2.0-alpha.3&t=${Date.now()}`, { cache: "no-store" });
+    const response = await fetch(`${base}${file}?v=0.2.0-alpha.4&t=${Date.now()}`, { cache: "no-store" });
     if (!response.ok) throw new Error(`Failed to fetch ${file} (${response.status})`);
     const code = await response.text();
     const id = `gmp-module-${file}`;

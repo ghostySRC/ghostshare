@@ -2,7 +2,7 @@
   "use strict";
   root.GMPInternal = root.GMPInternal || {};
   Object.assign(root.GMPInternal, {
-    CLIENT_VERSION: "0.2.0-alpha.3",
+    CLIENT_VERSION: "0.2.0-alpha.4",
     PROTOCOL_VERSION: 2,
     STORAGE_KEYS: {
       playerId: "gmp.playerId",

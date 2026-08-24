@@ -6,6 +6,15 @@
 
   const PATCH_NOTES = [
     {
+      version: "0.2.0-alpha.4",
+      title: "Stable public presence",
+      changes: [
+        "Moved Browse and Friends to a fresh directory namespace so incompatible early coordinators cannot leak stale behavior.",
+        "Kept public rooms and friends online during aggressive background-tab timer throttling.",
+        "Added the live directory connection state to Browse for easier network troubleshooting."
+      ]
+    },
+    {
       version: "0.2.0-alpha.3",
       title: "Clean room transitions",
       changes: [

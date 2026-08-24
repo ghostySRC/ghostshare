@@ -1,8 +1,8 @@
 (function (root) {
   "use strict";
   const ns = root.GMPInternal;
-  const DIRECTORY_ID = "gmp-public-directory-v2";
-  const STALE_MS = 16000;
+  const DIRECTORY_ID = "gmp-public-directory-v3";
+  const STALE_MS = 90000;
 
   function cleanFriendCode(value) {
     return String(value || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);

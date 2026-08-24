@@ -95,6 +95,7 @@
         this.ui.setPublicRooms(this.publicRooms);
         this.ui.setFriends(this.friends, this.presences);
       });
+      this.directory.addEventListener("status", (e) => this.ui.setDirectoryState(e.detail.state));
       this.directory.addEventListener("error", (e) => console.warn("[GMP] Directory:", e.detail.message));
     }
 
