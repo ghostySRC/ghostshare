@@ -18,7 +18,7 @@
   ];
 
   const load = async (file) => {
-    const response = await fetch(`${base}${file}?v=0.1.0-alpha.7&t=${Date.now()}`, { cache: "no-store" });
+    const response = await fetch(`${base}${file}?v=0.1.0-alpha.8&t=${Date.now()}`, { cache: "no-store" });
     if (!response.ok) throw new Error(`Failed to fetch ${file} (${response.status})`);
     const code = await response.text();
     const id = `gmp-module-${file}`;
@@ -32,6 +32,7 @@
   (async () => {
     try {
       for (const file of files) await load(file);
+      globalThis.__ghostysMultiplayerLoaderRunning = false;
     } catch (error) {
       globalThis.__ghostysMultiplayerLoaderRunning = false;
       console.error("[GMP] Loader failed", error);

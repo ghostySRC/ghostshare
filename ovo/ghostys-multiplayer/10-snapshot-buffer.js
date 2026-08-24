@@ -12,6 +12,30 @@
     return a + delta * t;
   }
 
+  function lerpPose(aPose, bPose, t) {
+    if (!Array.isArray(aPose) || !Array.isArray(bPose)) {
+      return Array.isArray(t >= 0.5 ? bPose : aPose) ? (t >= 0.5 ? bPose : aPose).map((part) => part.slice()) : [];
+    }
+    const count = Math.min(aPose.length, bPose.length, 16);
+    const useB = t >= 0.5;
+    const pose = [];
+    for (let i = 0; i < count; i++) {
+      const a = aPose[i];
+      const b = bPose[i];
+      if (!Array.isArray(a) || !Array.isArray(b)) continue;
+      pose.push([
+        lerp(Number(a[0]) || 0, Number(b[0]) || 0, t),
+        lerp(Number(a[1]) || 0, Number(b[1]) || 0, t),
+        lerpAngle(Number(a[2]) || 0, Number(b[2]) || 0, t),
+        lerp(Number(a[3]) || 0, Number(b[3]) || 0, t),
+        lerp(Number(a[4]) || 0, Number(b[4]) || 0, t),
+        useB ? Number(b[5]) || 0 : Number(a[5]) || 0,
+        useB ? (b[6] ? 1 : 0) : (a[6] ? 1 : 0)
+      ]);
+    }
+    return pose;
+  }
+
   class SnapshotBuffer {
     constructor(options = {}) {
       this.maxSnapshots = options.maxSnapshots || 20;
@@ -70,13 +94,14 @@
         frame: useB ? b.state.frame : a.state.frame,
         layout: useB ? b.state.layout : a.state.layout,
         layer: useB ? b.state.layer : a.state.layer,
-        username: useB ? b.state.username : a.state.username
+        username: useB ? b.state.username : a.state.username,
+        pose: lerpPose(a.state.pose, b.state.pose, t)
       };
     }
   }
 
-  Object.assign(ns, { SnapshotBuffer, lerp, lerpAngle });
+  Object.assign(ns, { SnapshotBuffer, lerp, lerpAngle, lerpPose });
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { SnapshotBuffer, lerp, lerpAngle };
+    module.exports = { SnapshotBuffer, lerp, lerpAngle, lerpPose };
   }
 })(globalThis);

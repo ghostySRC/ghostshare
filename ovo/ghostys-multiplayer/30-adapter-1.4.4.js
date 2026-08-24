@@ -77,6 +77,7 @@
         side: player.instance_vars[2],
         skin: player.instance_vars[12] || fallbackSkin,
         frame: Number.isFinite(player.cur_frame) ? player.cur_frame : 0,
+        pose: this.capturePose(player),
         layout: this.currentLayout(),
         layer: player.layer && player.layer.name || "Game",
         username
@@ -171,6 +172,9 @@
       const instance = this.runtime.createInstance(this.playerType, layer, state.x, state.y);
       instance.__gmpRemote = true;
       instance.visible = false;
+      if (instance.behavior_insts && instance.behavior_insts[0]) {
+        instance.behavior_insts[0].enabled = false;
+      }
       if (instance.instance_vars) {
         instance.instance_vars[16] = 1;
         instance.instance_vars[17] = "";
@@ -227,6 +231,10 @@
       instance.x = state.x;
       instance.y = state.y;
       instance.angle = state.angle || 0;
+      instance.visible = false;
+      if (instance.behavior_insts && instance.behavior_insts[0]) {
+        instance.behavior_insts[0].enabled = false;
+      }
       if (instance.instance_vars) {
         instance.instance_vars[0] = state.state;
         instance.instance_vars[2] = state.side;
@@ -243,6 +251,8 @@
         try { root.cr.plugins_.Sprite.prototype.acts.SetAnimFrame.call(instance, state.frame); } catch (_) {}
       }
       if ((state.skin || "") !== remote.skin) this.applySkin(remote, state.skin || "");
+      this.applyPose(remote, state.pose, state.x, state.y);
+      this.normalizeRemoteVisuals(remote);
       this.updateLabels(remote.labels, state.username || "Player", state.x, state.y);
       instance.set_bbox_changed();
     }
@@ -259,6 +269,8 @@
         inst.valign = 50;
         inst.color = index === 4 ? "rgb(255,255,255)" : "rgb(0,0,0)";
         inst.fontstyle = index === 4 ? "" : "bold";
+        inst.visible = true;
+        inst.opacity = 1;
         if (typeof inst.updateFont === "function") inst.updateFont();
         inst.set_bbox_changed();
         return inst;
@@ -272,6 +284,8 @@
         const [ox, oy] = offsets[index] || [0, 0];
         inst.x = x - 100 + ox;
         inst.y = y - 55 + oy;
+        inst.visible = true;
+        inst.opacity = 1;
         if (inst.text !== username) {
           inst.text = username;
           if (typeof inst.updateFont === "function") inst.updateFont();
@@ -280,18 +294,79 @@
       });
     }
 
+    capturePose(player) {
+      if (!player || !Array.isArray(player.siblings)) return [];
+      return player.siblings.slice(0, 16).map((sibling) => [
+        Number(sibling.x) - Number(player.x),
+        Number(sibling.y) - Number(player.y),
+        Number(sibling.angle) || 0,
+        Number(sibling.width) || 0,
+        Number(sibling.height) || 0,
+        Number.isFinite(sibling.cur_frame) ? sibling.cur_frame : 0,
+        sibling.visible === false ? 0 : 1
+      ]);
+    }
+
+    applyPose(remote, pose, x, y) {
+      if (!remote || !remote.instance || !Array.isArray(pose)) return;
+      const siblings = remote.instance.siblings || [];
+      const count = Math.min(siblings.length, pose.length);
+      for (let i = 0; i < count; i++) {
+        const sibling = siblings[i];
+        const part = pose[i];
+        if (!sibling || !Array.isArray(part)) continue;
+        sibling.x = x + (Number(part[0]) || 0);
+        sibling.y = y + (Number(part[1]) || 0);
+        sibling.angle = Number(part[2]) || 0;
+        if (Number.isFinite(Number(part[3]))) sibling.width = Number(part[3]);
+        if (Number.isFinite(Number(part[4]))) sibling.height = Number(part[4]);
+        if (Number.isFinite(Number(part[5])) && sibling.cur_frame !== Number(part[5])) {
+          try { root.cr.plugins_.Sprite.prototype.acts.SetAnimFrame.call(sibling, Number(part[5])); } catch (_) {}
+        }
+        const hasCustomSkin = (sibling.behaviorSkins || []).some((behavior) => behavior && !behavior.default);
+        sibling.visible = hasCustomSkin ? false : !!part[6];
+        sibling.set_bbox_changed();
+      }
+    }
+
+    normalizeRemoteVisuals(remote) {
+      if (!remote || !remote.instance) return;
+      remote.instance.visible = false;
+      remote.instance.opacity = 0;
+      if (remote.instance.behavior_insts && remote.instance.behavior_insts[0]) {
+        remote.instance.behavior_insts[0].enabled = false;
+      }
+      for (const sibling of remote.instance.siblings || []) {
+        sibling.opacity = 1;
+        const behaviors = sibling.behaviorSkins || [];
+        if (!behaviors.length) sibling.visible = true;
+        for (const behavior of behaviors) {
+          if (!behavior) continue;
+          if (behavior.object) {
+            behavior.object.visible = true;
+            behavior.object.opacity = 1;
+            behavior.object.set_bbox_changed();
+          } else if (behavior.default) {
+            sibling.visible = true;
+          }
+        }
+        sibling.set_bbox_changed();
+      }
+    }
+
     applySkin(remote, skin) {
       if (!remote || !remote.instance) return;
       remote.skin = skin;
       if (remote.instance.instance_vars) remote.instance.instance_vars[12] = skin;
       for (const sibling of remote.instance.siblings || []) {
-        try {
-          const behavior = sibling.behaviorSkins && sibling.behaviorSkins[0];
-          if (!behavior) continue;
-          if (!skin) root.cr.behaviors.SkymenSkin.prototype.acts.UseDefault.call(behavior);
-          else root.cr.behaviors.SkymenSkin.prototype.acts.SetSkin.call(behavior, skin);
-        } catch (_) {}
+        for (const behavior of sibling.behaviorSkins || []) {
+          try {
+            if (!skin) root.cr.behaviors.SkymenSkin.prototype.acts.UseDefault.call(behavior);
+            else root.cr.behaviors.SkymenSkin.prototype.acts.SetSkin.call(behavior, skin);
+          } catch (_) {}
+        }
       }
+      this.normalizeRemoteVisuals(remote);
     }
 
     resetSiblingSkins(instance) {

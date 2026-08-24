@@ -40,6 +40,7 @@
         localStorage.setItem(ns.STORAGE_KEYS.username, username);
         this.ui.setUsername(username);
         this.socket?.setUsername(username);
+        if (this.room) this.adapter.updateLocalPlayerLabel(username);
         this.ui.toast("Username saved");
       });
       this.ui.addEventListener("create_room", () => this.socket?.send("create_room", { mode: "freeplay", visibility: "private", maxPlayers: 8 }));
@@ -114,6 +115,8 @@
     }
 
     handleRoomJoined(message) {
+      for (const id of Array.from(this.buffers.keys())) this.removeRemotePlayer(id);
+      this.adapter.destroyAllRemotePlayers();
       this.room = message.room;
       this.adapter.setMultiplayerActive(true);
       this.players = new Map((message.players || []).map((p) => [p.playerId, p]));
@@ -122,14 +125,16 @@
       const url = new URL(location.href);
       url.searchParams.set("gmpRoom", this.room.code);
       history.replaceState({}, "", url);
+      this.adapter.updateLocalPlayerLabel(this.username);
       if (!message.resumed) this.ui.toast(`Joined ${this.room.code}`);
     }
 
     handleRoomLeft() {
       this.room = null;
-      this.adapter.setMultiplayerActive(false);
       this.players.clear();
       for (const id of Array.from(this.buffers.keys())) this.removeRemotePlayer(id);
+      this.adapter.destroyAllRemotePlayers();
+      this.adapter.setMultiplayerActive(false);
       this.ui.setRoom(null);
       this.ui.setPlayers([]);
       const url = new URL(location.href);
@@ -195,8 +200,8 @@
       this.destroyed = true;
       clearInterval(this.sendTimer);
       this.socket?.disconnect();
-      this.adapter.setMultiplayerActive(false);
       this.adapter.destroyAllRemotePlayers();
+      this.adapter.setMultiplayerActive(false);
       this.adapter.destroyLocalLabels();
       this.ui.destroy();
     }

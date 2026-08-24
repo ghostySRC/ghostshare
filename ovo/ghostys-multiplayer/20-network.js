@@ -331,13 +331,16 @@
 
     sanitizeState(state) {
       if (!state || typeof state !== "object") return null;
+      const movementState = typeof state.state === "string"
+        ? state.state.slice(0, 32)
+        : (Number.isFinite(Number(state.state)) ? Number(state.state) : 0);
       const out = {
         active: !!state.active,
         layout: String(state.layout || "").slice(0, 80),
         layer: String(state.layer || "Game").slice(0, 80),
         username: cleanUsername(state.username || this.username),
         skin: String(state.skin || "").slice(0, 80),
-        state: Number.isFinite(Number(state.state)) ? Number(state.state) : 0,
+        state: movementState,
         side: Number.isFinite(Number(state.side)) ? Number(state.side) : 1,
         frame: Number.isFinite(Number(state.frame)) ? Number(state.frame) : 0,
         angle: Number.isFinite(Number(state.angle)) ? Number(state.angle) : 0
@@ -348,6 +351,22 @@
         if (!Number.isFinite(out.x) || !Number.isFinite(out.y)) return null;
         out.x = ns.clamp(out.x, -1000000, 1000000);
         out.y = ns.clamp(out.y, -1000000, 1000000);
+        if (Array.isArray(state.pose)) {
+          out.pose = state.pose.slice(0, 16).map((part) => {
+            if (!Array.isArray(part)) return null;
+            const values = part.slice(0, 7).map(Number);
+            if (values.slice(0, 5).some((value) => !Number.isFinite(value))) return null;
+            return [
+              ns.clamp(values[0], -10000, 10000),
+              ns.clamp(values[1], -10000, 10000),
+              ns.clamp(values[2], -Math.PI * 8, Math.PI * 8),
+              ns.clamp(values[3], -10000, 10000),
+              ns.clamp(values[4], -10000, 10000),
+              Number.isFinite(values[5]) ? ns.clamp(Math.round(values[5]), 0, 1000) : 0,
+              values[6] ? 1 : 0
+            ];
+          }).filter(Boolean);
+        }
       }
       return out;
     }

@@ -6,6 +6,16 @@
 
   const PATCH_NOTES = [
     {
+      version: "0.1.0-alpha.8",
+      title: "Real player animation sync",
+      changes: [
+        "Fixed movement states such as run, jump and idle being converted to zero during network validation.",
+        "Added interpolated limb-pose synchronization so remote players match the sender instead of freezing in OvO's ghost pose.",
+        "Removed the forced 50% replay-ghost opacity and stopped default body parts appearing underneath custom skins.",
+        "Hardened local username labels, room cleanup and same-page loader updates."
+      ]
+    },
+    {
       version: "0.1.0-alpha.7",
       title: "Clean player rendering",
       changes: [
