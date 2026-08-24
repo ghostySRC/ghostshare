@@ -6,6 +6,18 @@
 
   const PATCH_NOTES = [
     {
+      version: "0.2.0-alpha.2",
+      title: "Race and directory hardening",
+      changes: [
+        "Synchronized race countdowns using measured host clock offset and blocked incompatible or mid-race joins.",
+        "Fixed multiple tabs for the same friend overwriting each other's online and in-room presence.",
+        "Stopped private friend room codes from appearing in unfiltered directory snapshots.",
+        "Removed stale rooms immediately when a host switches rooms or a directory client disconnects.",
+        "Added PeerJS signaling reconnects, load timeouts and reliable version-folder path resolution.",
+        "Made newly copied invite links join their room automatically."
+      ]
+    },
+    {
       version: "0.2.0-alpha.1",
       title: "Every multiplayer tab works",
       changes: [

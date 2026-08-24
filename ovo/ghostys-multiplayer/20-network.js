@@ -23,17 +23,30 @@
     if (ns.peerJsPromise) return ns.peerJsPromise;
     ns.peerJsPromise = new Promise((resolve, reject) => {
       const existing = document.getElementById("gmp-peerjs");
-      if (existing) {
-        existing.addEventListener("load", () => resolve(root.Peer), { once: true });
-        existing.addEventListener("error", () => reject(new Error("Could not load PeerJS")), { once: true });
-        return;
+      const script = existing || document.createElement("script");
+      let settled = false;
+      const finish = (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        if (!error && root.Peer) return resolve(root.Peer);
+        ns.peerJsPromise = null;
+        script.remove();
+        reject(error || new Error("PeerJS loaded but window.Peer is missing"));
+      };
+      const timeout = setTimeout(() => finish(new Error("PeerJS took too long to load")), 12000);
+      script.addEventListener("load", () => finish(null), { once: true });
+      script.addEventListener("error", () => finish(new Error("Could not load OvO's bundled PeerJS library")), { once: true });
+      if (!existing) {
+        script.id = "gmp-peerjs";
+        const versionPath = location.pathname.match(/^(.*\/1\.4\.4)(?:\/|$)/);
+        script.src = versionPath
+          ? new URL(`${versionPath[1]}/peerjs.min.js`, location.origin).href
+          : new URL("./peerjs.min.js", location.href).href;
+        document.head.appendChild(script);
+      } else if (root.Peer) {
+        finish(null);
       }
-      const script = document.createElement("script");
-      script.id = "gmp-peerjs";
-      script.src = new URL("./peerjs.min.js", location.href).href;
-      script.onload = () => root.Peer ? resolve(root.Peer) : reject(new Error("PeerJS loaded but window.Peer is missing"));
-      script.onerror = () => reject(new Error("Could not load OvO's bundled PeerJS library"));
-      document.head.appendChild(script);
     });
     return ns.peerJsPromise;
   }
@@ -57,6 +70,7 @@
       this.pingStartedAt = 0;
       this.pingTimer = null;
       this.lastPingMs = null;
+      this.clockOffsetMs = 0;
       this.raceSession = null;
     }
 
@@ -123,6 +137,7 @@
     openHostPeer(options = {}) {
       const code = randomRoomCode();
       const peer = new root.Peer(PEER_PREFIX + code);
+      let announced = false;
       this.peer = peer;
       this.room = {
         code,
@@ -136,12 +151,17 @@
       this.players = new Map([[this.playerId, this.selfProfile(true)]]);
 
       peer.on("open", () => {
+        if (this.peer !== peer) return;
         this.roomGenerationAttempt = 0;
-        this.dispatch("room_joined", {
-          resumed: false,
-          room: { ...this.room },
-          players: Array.from(this.players.values())
-        });
+        if (!announced) {
+          announced = true;
+          this.dispatch("room_joined", {
+            resumed: false,
+            room: { ...this.room },
+            players: Array.from(this.players.values())
+          });
+        }
+        this.dispatch("status", { state: "online" });
         this.dispatch("ping", { pingMs: 0 });
       });
 
@@ -156,7 +176,7 @@
         this.dispatch("error", { message: this.describePeerError(error) });
       });
       peer.on("disconnected", () => {
-        if (!this.intentionalClose) this.dispatch("status", { state: "reconnecting" });
+        this.recoverPeer(peer);
       });
     }
 
@@ -177,6 +197,16 @@
       if (!message || typeof message !== "object" || typeof message.t !== "string") return;
       if (message.t === "join") {
         if (entry.playerId) return;
+        if (this.room.mode === "race" && Number(message.protocolVersion) !== ns.PROTOCOL_VERSION) {
+          this.safeSend(entry.conn, { t: "reject", message: "This Race room needs the latest GMP update" });
+          setTimeout(() => { try { entry.conn.close(); } catch (_) {} }, 30);
+          return;
+        }
+        if (this.isRaceActive()) {
+          this.safeSend(entry.conn, { t: "reject", message: "Race is already in progress" });
+          setTimeout(() => { try { entry.conn.close(); } catch (_) {} }, 30);
+          return;
+        }
         if (this.players.size >= this.room.maxPlayers) {
           this.safeSend(entry.conn, { t: "reject", message: "Room is full" });
           setTimeout(() => { try { entry.conn.close(); } catch (_) {} }, 30);
@@ -202,7 +232,7 @@
           t: "welcome",
           room: { ...this.room },
           players: Array.from(this.players.values()),
-          raceSession: this.raceSession
+          raceSession: this.isRaceActive() ? this.raceSession : null
         });
         this.broadcast({ t: "player_joined", player }, playerId);
         this.dispatch("player_joined", { player });
@@ -224,7 +254,7 @@
         this.broadcast(packet);
         this.dispatch("profile_updated", packet);
       } else if (message.t === "ping") {
-        this.safeSend(entry.conn, { t: "pong", nonce: message.nonce });
+        this.safeSend(entry.conn, { t: "pong", nonce: message.nonce, serverTime: Date.now() });
       } else if (message.t === "race_finish") {
         this.recordRaceFinish(entry.playerId, message);
       } else if (message.t === "leave") {
@@ -245,13 +275,17 @@
       this.room = { code: roomCode, ownerId: null, mode: "freeplay", visibility: "private", maxPlayers: 8, transport: "peerjs" };
       const peer = new root.Peer();
       this.peer = peer;
-      peer.on("open", () => this.connectToHost(roomCode));
+      peer.on("open", () => {
+        if (this.peer !== peer) return;
+        if (this.hostConnection?.open) this.dispatch("status", { state: "online" });
+        else this.connectToHost(roomCode);
+      });
       peer.on("error", (error) => {
         this.dispatch("error", { message: this.describePeerError(error, roomCode) });
         if (error && (error.type === "peer-unavailable" || error.type === "network")) this.leaveRoom(false);
       });
       peer.on("disconnected", () => {
-        if (!this.intentionalClose && this.room) this.dispatch("status", { state: "reconnecting" });
+        this.recoverPeer(peer);
       });
     }
 
@@ -266,7 +300,8 @@
           playerId: this.playerId,
           username: this.username,
           gameVersion: this.gameVersion,
-          clientVersion: ns.CLIENT_VERSION
+          clientVersion: ns.CLIENT_VERSION,
+          protocolVersion: ns.PROTOCOL_VERSION
         });
       });
       conn.on("data", (message) => {
@@ -290,8 +325,8 @@
         this.players = new Map((message.players || []).map((p) => [p.playerId, p]));
         this.dispatch("room_joined", { resumed: false, room: { ...this.room }, players: Array.from(this.players.values()) });
         if (message.raceSession) {
-          this.raceSession = message.raceSession;
-          this.dispatch("race_started", message.raceSession);
+          this.raceSession = this.localizeRaceSession(message.raceSession);
+          this.dispatch("race_started", this.raceSession);
         }
         this.startPing();
       } else if (message.t === "reject") {
@@ -310,13 +345,16 @@
       } else if (message.t === "player_state") {
         this.dispatch("player_state", message);
       } else if (message.t === "race_start") {
-        this.raceSession = message.session || {};
+        this.raceSession = this.localizeRaceSession(message.session || {});
         this.dispatch("race_started", this.raceSession);
       } else if (message.t === "race_results") {
         if (this.raceSession && this.raceSession.raceId === message.raceId) this.raceSession.results = message.results;
         this.dispatch("race_results", { raceId: message.raceId, results: Array.isArray(message.results) ? message.results : [] });
       } else if (message.t === "pong" && message.nonce === this.pingNonce) {
         this.lastPingMs = Math.max(0, Math.round(performance.now() - this.pingStartedAt));
+        if (Number.isFinite(Number(message.serverTime))) {
+          this.clockOffsetMs = Number(message.serverTime) + this.lastPingMs / 2 - Date.now();
+        }
         this.dispatch("ping", { pingMs: this.lastPingMs });
       }
     }
@@ -357,9 +395,11 @@
         layout,
         countdownMs,
         startedAt: Date.now(),
+        startAt: Date.now() + countdownMs,
+        participantIds: Array.from(this.players.keys()),
         results: []
       };
-      const session = { ...this.raceSession, results: [] };
+      const session = { ...this.raceSession, participantIds: this.raceSession.participantIds.slice(), results: [], localCountdownMs: countdownMs };
       this.broadcast({ t: "race_start", session });
       this.dispatch("race_started", session);
       return true;
@@ -378,6 +418,7 @@
     recordRaceFinish(playerId, payload = {}) {
       const race = this.raceSession;
       if (!race || String(payload.raceId || "") !== race.raceId) return false;
+      if (!Array.isArray(race.participantIds) || !race.participantIds.includes(playerId)) return false;
       if (race.results.some((result) => result.playerId === playerId)) return false;
       const timeMs = Math.max(0, Math.min(3600000, Math.round(Number(payload.timeMs))));
       if (!Number.isFinite(timeMs)) return false;
@@ -393,6 +434,21 @@
       this.broadcast(packet);
       this.dispatch("race_results", packet);
       return true;
+    }
+
+    isRaceActive() {
+      const race = this.raceSession;
+      return !!(this.room?.mode === "race" && race && Array.isArray(race.participantIds) &&
+        race.results.length < race.participantIds.length);
+    }
+
+    localizeRaceSession(session) {
+      const startAt = Number(session.startAt);
+      const fallback = Math.max(0, Math.min(10000, Number(session.countdownMs) || 0));
+      const localCountdownMs = Number.isFinite(startAt)
+        ? Math.max(0, Math.min(10000, startAt - (Date.now() + this.clockOffsetMs)))
+        : fallback;
+      return { ...session, localCountdownMs };
     }
 
     sanitizeState(state) {
@@ -442,6 +498,9 @@
       if (!playerId || !this.connections.has(playerId)) return;
       this.connections.delete(playerId);
       this.players.delete(playerId);
+      if (this.raceSession && Array.isArray(this.raceSession.participantIds)) {
+        this.raceSession.participantIds = this.raceSession.participantIds.filter((id) => id !== playerId);
+      }
       const packet = { t: "player_left", playerId, reason };
       this.broadcast(packet);
       this.dispatch("player_left", packet);
@@ -513,6 +572,15 @@
       clearInterval(this.pingTimer);
       this.pingTimer = null;
       this.pingNonce = null;
+    }
+
+    recoverPeer(peer) {
+      if (this.intentionalClose || !this.room || this.peer !== peer || peer.destroyed) return;
+      this.dispatch("status", { state: "reconnecting" });
+      setTimeout(() => {
+        if (this.intentionalClose || this.peer !== peer || peer.destroyed || !peer.disconnected) return;
+        try { peer.reconnect(); } catch (_) {}
+      }, 800 + Math.random() * 700);
     }
 
     describePeerError(error, roomCode = "") {

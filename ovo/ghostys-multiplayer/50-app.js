@@ -22,6 +22,11 @@
       }
       this.friends = ns.safeJsonParse(localStorage.getItem(ns.STORAGE_KEYS.friends), []);
       if (!Array.isArray(this.friends)) this.friends = [];
+      this.friends = Array.from(new Set(this.friends
+        .map((friend) => ns.cleanFriendCode(friend && friend.friendCode))
+        .filter((code) => code.length >= 6 && code !== this.friendCode)))
+        .slice(0, 100)
+        .map((friendCode) => ({ friendCode }));
       this.presences = [];
       this.publicRooms = [];
       this.room = null;
@@ -235,7 +240,13 @@
 
     handleRaceStarted(session) {
       if (!session || !session.raceId || !/^Level \d+$/.test(String(session.layout || ""))) return;
-      const countdownMs = Math.max(1000, Math.min(10000, Number(session.countdownMs) || 3000));
+      if (!this.adapter.listRaceLayouts().includes(session.layout)) {
+        this.ui.toast(`Race level ${session.layout} is not available in this OvO build`);
+        this.socket?.send("leave_room", {});
+        return;
+      }
+      const suppliedCountdown = session.localCountdownMs == null ? session.countdownMs : session.localCountdownMs;
+      const countdownMs = Math.max(0, Math.min(10000, Number(suppliedCountdown) || 0));
       this.race = {
         raceId: session.raceId,
         layout: session.layout,
@@ -335,6 +346,9 @@
       if (code && /^[A-Za-z0-9]{6}$/.test(code)) {
         this.ui.refs.roomCode.value = code.toUpperCase();
         this.ui.setOpen(true);
+        if (new URL(location.href).searchParams.get("gmpAutoJoin") === "1") {
+          this.socket?.send("join_room", { roomCode: code.toUpperCase() });
+        }
       }
     }
 

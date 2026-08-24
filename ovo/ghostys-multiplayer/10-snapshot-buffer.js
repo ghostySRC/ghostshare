@@ -49,6 +49,14 @@
 
     push(state, receivedAt = performance.now()) {
       if (!state || !Number.isFinite(state.x) || !Number.isFinite(state.y)) return;
+      const previous = this.snapshots[this.snapshots.length - 1];
+      if (previous) {
+        const changedScene = previous.state.layout !== state.layout || previous.state.layer !== state.layer;
+        const dx = previous.state.x - state.x;
+        const dy = previous.state.y - state.y;
+        const teleported = dx * dx + dy * dy > 350 * 350;
+        if (changedScene || teleported) this.clear();
+      }
       const snapshot = { receivedAt, state: { ...state } };
       const last = this.snapshots[this.snapshots.length - 1];
       if (last && receivedAt < last.receivedAt) {

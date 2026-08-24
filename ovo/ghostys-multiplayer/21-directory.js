@@ -51,8 +51,8 @@
 
     electCoordinator() {
       if (this.destroyed || !root.Peer) return;
-      this.closePeer();
       const generation = ++this.generation;
+      this.closePeer();
       const peer = new root.Peer(DIRECTORY_ID);
       this.peer = peer;
       peer.on("open", () => {
@@ -71,13 +71,13 @@
           this.scheduleRetry();
         }
       });
-      peer.on("disconnected", () => this.scheduleRetry());
+      peer.on("disconnected", () => { if (generation === this.generation) this.scheduleRetry(); });
     }
 
     openClient(previousGeneration) {
       if (previousGeneration !== this.generation || this.destroyed) return;
-      try { this.peer?.destroy(); } catch (_) {}
       const generation = ++this.generation;
+      try { this.peer?.destroy(); } catch (_) {}
       const peer = new root.Peer();
       this.peer = peer;
       this.isCoordinator = false;
@@ -86,16 +86,17 @@
         const conn = peer.connect(DIRECTORY_ID, { reliable: true });
         this.connection = conn;
         conn.on("open", () => {
+          if (generation !== this.generation) return;
           this.dispatch("status", { state: "online", coordinator: false });
           this.sendHeartbeat();
           this.startHeartbeat();
         });
-        conn.on("data", (message) => this.handleDirectoryMessage(message));
-        conn.on("close", () => this.scheduleRetry());
-        conn.on("error", () => this.scheduleRetry());
+        conn.on("data", (message) => { if (generation === this.generation) this.handleDirectoryMessage(message); });
+        conn.on("close", () => { if (generation === this.generation) this.scheduleRetry(); });
+        conn.on("error", () => { if (generation === this.generation) this.scheduleRetry(); });
       });
-      peer.on("error", () => this.scheduleRetry());
-      peer.on("disconnected", () => this.scheduleRetry());
+      peer.on("error", () => { if (generation === this.generation) this.scheduleRetry(); });
+      peer.on("disconnected", () => { if (generation === this.generation) this.scheduleRetry(); });
     }
 
     startCoordinator() {
@@ -115,8 +116,15 @@
           this.applyHeartbeat(message, conn);
         }
         if (message?.t === "directory_refresh") this.sendSnapshot(conn);
+        if (message?.t === "directory_goodbye") this.removePlayer(String(message.playerId || ""));
       });
-      const drop = () => this.clients.delete(conn);
+      let dropped = false;
+      const drop = () => {
+        if (dropped) return;
+        dropped = true;
+        this.clients.delete(conn);
+        if (conn.__gmpPlayerId) this.removePlayer(conn.__gmpPlayerId);
+      };
       conn.on("close", drop);
       conn.on("error", drop);
       conn.on("open", () => this.sendSnapshot(conn));
@@ -193,7 +201,7 @@
       const friendCode = cleanFriendCode(message.friendCode);
       if (!playerId || friendCode.length < 6) return;
       this.watchLists.set(playerId, new Set((message.watching || []).map(cleanFriendCode).filter((code) => code.length >= 6).slice(0, 100)));
-      this.presences.set(friendCode, {
+      this.presences.set(playerId, {
         friendCode,
         playerId,
         username: ns.cleanUsername(message.username),
@@ -203,9 +211,13 @@
         playerCount: Math.max(0, Math.min(8, Number(message.presence?.playerCount) || 0)),
         seenAt: now
       });
-      if (message.room && /^[A-Z0-9]{6}$/.test(String(message.room.code || ""))) {
-        this.rooms.set(message.room.code, {
-          code: message.room.code,
+      const roomCode = String(message.room?.code || "").toUpperCase();
+      if (message.room && /^[A-Z0-9]{6}$/.test(roomCode)) {
+        for (const [code, room] of this.rooms) {
+          if (room.ownerId === playerId && code !== roomCode) this.rooms.delete(code);
+        }
+        this.rooms.set(roomCode, {
+          code: roomCode,
           mode: message.room.mode === "race" ? "race" : "freeplay",
           visibility: "public",
           maxPlayers: Math.max(2, Math.min(8, Number(message.room.maxPlayers) || 8)),
@@ -230,6 +242,14 @@
       this.publishSnapshot();
     }
 
+    removePlayer(playerId) {
+      if (!playerId) return;
+      this.presences.delete(playerId);
+      this.watchLists.delete(playerId);
+      for (const [code, room] of this.rooms) if (room.ownerId === playerId) this.rooms.delete(code);
+      this.publishSnapshot();
+    }
+
     publishSnapshot() {
       this.handleDirectoryMessage(this.buildSnapshot(new Set(this.watching)));
       for (const conn of this.clients) {
@@ -242,11 +262,19 @@
     }
 
     buildSnapshot(watching) {
+      const selected = new Map();
+      for (const presence of this.presences.values()) {
+        if (!watching.has(presence.friendCode)) continue;
+        const current = selected.get(presence.friendCode);
+        if (!current || (!current.roomCode && presence.roomCode) ||
+          (!!current.roomCode === !!presence.roomCode && presence.seenAt > current.seenAt)) {
+          selected.set(presence.friendCode, presence);
+        }
+      }
       return {
         t: "directory_snapshot",
         rooms: Array.from(this.rooms.values()).map(({ seenAt, ownerId, ...room }) => room),
-        presences: Array.from(this.presences.values())
-          .filter((presence) => watching.has(presence.friendCode))
+        presences: Array.from(selected.values())
           .map(({ seenAt, playerId, ...presence }) => presence)
       };
     }
@@ -294,6 +322,7 @@
     destroy() {
       this.destroyed = true;
       clearTimeout(this.retryTimer);
+      if (!this.isCoordinator) this.safeSend(this.connection, { t: "directory_goodbye", playerId: this.playerId });
       this.closePeer();
     }
 
