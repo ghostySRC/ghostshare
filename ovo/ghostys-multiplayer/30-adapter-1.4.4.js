@@ -311,6 +311,12 @@
       instance.set_bbox_changed();
     }
 
+    updateRemoteUsername(playerId, username) {
+      const remote = this.remoteInstances.get(playerId);
+      if (!remote || !remote.instance || !this.labelsAreLive(remote.labels)) return;
+      this.updateLabels(remote.labels, username || "Player", remote.instance.x, remote.instance.y);
+    }
+
     createLabels(layer, username, x, y, ownerId) {
       const offsets = [[-2, 0], [2, 0], [0, -2], [0, 2], [0, 0]];
       return offsets.map(([ox, oy], index) => {

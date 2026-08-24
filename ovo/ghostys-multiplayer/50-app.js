@@ -173,6 +173,7 @@
         if (player) {
           player.username = e.detail.username;
           this.ui.upsertPlayer(player);
+          this.adapter.updateRemoteUsername(e.detail.playerId, e.detail.username);
         }
       });
       socket.addEventListener("owner_changed", (e) => {
@@ -316,6 +317,11 @@
       const now = performance.now();
       if (!this.adapter.isPlayableLayout(layout)) return;
       for (const [playerId, buffer] of this.buffers.entries()) {
+        if (buffer.isStale(now, 2500)) {
+          this.adapter.destroyRemotePlayer(playerId);
+          buffer.clear();
+          continue;
+        }
         const state = buffer.sample(now);
         if (state) this.adapter.updateRemotePlayer(playerId, state);
       }

@@ -47,6 +47,16 @@
       this.snapshots.length = 0;
     }
 
+    latestReceivedAt() {
+      const latest = this.snapshots[this.snapshots.length - 1];
+      return latest ? latest.receivedAt : null;
+    }
+
+    isStale(now = performance.now(), maxAgeMs = 2500) {
+      const latest = this.latestReceivedAt();
+      return latest != null && now - latest > Math.max(250, Number(maxAgeMs) || 2500);
+    }
+
     push(state, receivedAt = performance.now()) {
       if (!state || !Number.isFinite(state.x) || !Number.isFinite(state.y)) return;
       const previous = this.snapshots[this.snapshots.length - 1];

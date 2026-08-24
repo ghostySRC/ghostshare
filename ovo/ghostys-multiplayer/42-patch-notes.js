@@ -6,6 +6,14 @@
 
   const PATCH_NOTES = [
     {
+      version: "0.2.0-alpha.8",
+      title: "No more stale players",
+      changes: [
+        "Removed remote models and name labels when their movement stream stops instead of leaving a frozen character forever.",
+        "Made changed usernames redraw above the remote player immediately, without waiting for another movement packet."
+      ]
+    },
+    {
       version: "0.2.0-alpha.7",
       title: "Clean players and names",
       changes: [
