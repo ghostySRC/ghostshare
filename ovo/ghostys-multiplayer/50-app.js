@@ -230,7 +230,7 @@
 
     handlePlayerState(message) {
       if (!message || message.playerId === this.playerId || !message.state) return;
-      if (!message.state.active) {
+      if (!message.state.active || !this.adapter.isPlayableLayout(message.state.layout)) {
         this.removeRemotePlayer(message.playerId);
         return;
       }
@@ -300,15 +300,21 @@
       const layout = this.adapter.currentLayout();
       if (layout !== this.lastLayout) {
         this.lastLayout = layout;
+        for (const buffer of this.buffers.values()) buffer.clear();
         this.adapter.handleLayoutChange();
         this.updateDirectoryPresence();
       }
       if (this.room) {
         this.adapter.destroyBuiltInGhosts();
-        this.adapter.updateLocalPlayerLabel(this.username);
+        if (this.adapter.isPlayableLayout(layout)) this.adapter.updateLocalPlayerLabel(this.username);
+        else {
+          this.adapter.destroyAllRemotePlayers();
+          this.adapter.destroyLocalLabels();
+        }
       }
       this.tickRace();
       const now = performance.now();
+      if (!this.adapter.isPlayableLayout(layout)) return;
       for (const [playerId, buffer] of this.buffers.entries()) {
         const state = buffer.sample(now);
         if (state) this.adapter.updateRemotePlayer(playerId, state);

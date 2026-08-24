@@ -53,6 +53,10 @@
       return this.runtime.running_layout && this.runtime.running_layout.name || "Unknown";
     }
 
+    isPlayableLayout(name = this.currentLayout()) {
+      return /^Level \d+$/.test(String(name || "")) && !!(this.runtime.layouts && this.runtime.layouts[name]);
+    }
+
     getLocalPlayer() {
       return this.playerType.instances.find((x) =>
         x && x.instance_vars && x.instance_vars[17] === "" &&
@@ -62,13 +66,17 @@
     }
 
     getLocalState(username) {
-      const player = this.getLocalPlayer();
+      const layout = this.currentLayout();
       const fallbackSkin = this.globalType.instances[0] && this.globalType.instances[0].instance_vars
         ? this.globalType.instances[0].instance_vars[8] || ""
         : "";
+      if (!this.isPlayableLayout(layout)) {
+        return { layout, username, skin: fallbackSkin, active: false };
+      }
+      const player = this.getLocalPlayer();
       if (!player) {
         return {
-          layout: this.currentLayout(),
+          layout,
           username,
           skin: fallbackSkin,
           active: false
@@ -84,7 +92,7 @@
         skin: player.instance_vars[12] || fallbackSkin,
         frame: Number.isFinite(player.cur_frame) ? player.cur_frame : 0,
         pose: this.capturePose(player),
-        layout: this.currentLayout(),
+        layout,
         layer: player.layer && player.layer.name || "Game",
         username
       };
@@ -111,6 +119,7 @@
     }
 
     isAtFinish() {
+      if (!this.isPlayableLayout()) return false;
       const player = this.getLocalPlayer();
       if (!player || !this.endFlagType || !this.endFlagType.instances) return false;
       return this.endFlagType.instances.some((flag) => {
@@ -156,7 +165,7 @@
       );
       for (const ghost of ghosts) {
         try {
-          this.resetSiblingSkins(ghost);
+          this.destroySkinObjects(ghost);
           this.runtime.DestroyInstance(ghost);
         } catch (_) {}
       }
@@ -171,13 +180,13 @@
     }
 
     updateLocalPlayerLabel(username) {
-      if (!this.multiplayerActive) return this.destroyLocalLabels();
+      if (!this.multiplayerActive || !this.isPlayableLayout()) return this.destroyLocalLabels();
       const player = this.getLocalPlayer();
       if (!player || !player.layer) return this.destroyLocalLabels();
-      if (!this.localLabels || this.localPlayerUid !== player.uid) {
+      if (!this.labelsAreLive(this.localLabels) || this.localPlayerUid !== player.uid) {
         this.destroyLocalLabels();
         this.localPlayerUid = player.uid;
-        this.localLabels = this.createLabels(player.layer, username || "Player", player.x, player.y);
+        this.localLabels = this.createLabels(player.layer, username || "Player", player.x, player.y, "local");
       }
       this.updateLabels(this.localLabels, username || "Player", player.x, player.y);
     }
@@ -191,6 +200,7 @@
     handleLayoutChange() {
       this.destroyAllRemotePlayers();
       this.destroyLocalLabels();
+      this.sweepOwnedVisuals();
       if (this.multiplayerActive) {
         this.disableBuiltInGhosts();
         this.destroyBuiltInGhosts();
@@ -198,7 +208,7 @@
     }
 
     createRemotePlayer(playerId, state) {
-      if (!state || !state.active || state.layout !== this.currentLayout()) return null;
+      if (!this.isPlayableLayout() || !state || !state.active || state.layout !== this.currentLayout()) return null;
       if (!Number.isFinite(state.x) || !Number.isFinite(state.y)) return null;
       const layer = this.runtime.running_layout.layers.find((x) => x.name === state.layer);
       if (!layer) return null;
@@ -218,7 +228,7 @@
       const remote = {
         playerId,
         instance,
-        labels: this.createLabels(layer, state.username || "Player", state.x, state.y),
+        labels: this.createLabels(layer, state.username || "Player", state.x, state.y, playerId),
         skin: null,
         side: null,
         frame: null
@@ -233,11 +243,12 @@
       if (!remote) return;
       try {
         if (remote.instance) {
-          this.resetSiblingSkins(remote.instance);
+          this.destroySkinObjects(remote.instance, remote.playerId);
           this.runtime.DestroyInstance(remote.instance);
         }
       } catch (_) {}
       this.destroyLabels(remote.labels);
+      this.sweepOwnedVisuals(remote.playerId);
       if (typeof playerId === "string") this.remoteInstances.delete(playerId);
       else if (remote.playerId) this.remoteInstances.delete(remote.playerId);
     }
@@ -248,13 +259,18 @@
 
     destroyLabels(labels) {
       for (const label of labels || []) {
-        try { this.runtime.DestroyInstance(label); } catch (_) {}
+        try {
+          if (label.__gmpNameLabelUid !== label.uid) continue;
+          label.__gmpNameLabelOwner = null;
+          label.__gmpNameLabelUid = null;
+          this.runtime.DestroyInstance(label);
+        } catch (_) {}
       }
     }
 
     updateRemotePlayer(playerId, state) {
       let remote = this.remoteInstances.get(playerId);
-      if (!state || !state.active || state.layout !== this.currentLayout()) {
+      if (!this.isPlayableLayout() || !state || !state.active || state.layout !== this.currentLayout()) {
         if (remote) this.destroyRemotePlayer(playerId);
         return;
       }
@@ -287,14 +303,20 @@
       if ((state.skin || "") !== remote.skin) this.applySkin(remote, state.skin || "");
       this.applyPose(remote, state.pose, state.x, state.y);
       this.normalizeRemoteVisuals(remote);
+      if (!this.labelsAreLive(remote.labels)) {
+        this.destroyLabels(remote.labels);
+        remote.labels = this.createLabels(instance.layer, state.username || "Player", state.x, state.y, playerId);
+      }
       this.updateLabels(remote.labels, state.username || "Player", state.x, state.y);
       instance.set_bbox_changed();
     }
 
-    createLabels(layer, username, x, y) {
+    createLabels(layer, username, x, y, ownerId) {
       const offsets = [[-2, 0], [2, 0], [0, -2], [0, 2], [0, 0]];
       return offsets.map(([ox, oy], index) => {
         const inst = this.runtime.createInstance(this.textType, layer, x - 100 + ox, y - 55 + oy);
+        inst.__gmpNameLabelOwner = String(ownerId || "unknown");
+        inst.__gmpNameLabelUid = inst.uid;
         inst.text = username;
         inst.height = 25;
         inst.width = 200;
@@ -305,16 +327,24 @@
         inst.fontstyle = index === 4 ? "" : "bold";
         inst.visible = true;
         inst.opacity = 1;
+        inst.text_changed = true;
+        inst.need_text_redraw = true;
         if (typeof inst.updateFont === "function") inst.updateFont();
         inst.set_bbox_changed();
         return inst;
       });
     }
 
+    labelsAreLive(labels) {
+      return Array.isArray(labels) && labels.length === 5 && labels.every((label) =>
+        label && label.__gmpNameLabelOwner && label.__gmpNameLabelUid === label.uid
+      );
+    }
+
     updateLabels(labels, username, x, y) {
       const offsets = [[-2, 0], [2, 0], [0, -2], [0, 2], [0, 0]];
       (labels || []).forEach((inst, index) => {
-        if (!inst) return;
+        if (!inst || inst.__gmpNameLabelUid !== inst.uid) return;
         const [ox, oy] = offsets[index] || [0, 0];
         inst.x = x - 100 + ox;
         inst.y = y - 55 + oy;
@@ -322,7 +352,9 @@
         inst.opacity = 1;
         if (inst.text !== username) {
           inst.text = username;
-          if (typeof inst.updateFont === "function") inst.updateFont();
+          inst.text_changed = true;
+          inst.need_text_redraw = true;
+          this.runtime.redraw = true;
         }
         inst.set_bbox_changed();
       });
@@ -377,6 +409,7 @@
         for (const behavior of behaviors) {
           if (!behavior) continue;
           if (behavior.object) {
+            this.markSkinObject(behavior.object, remote.playerId);
             behavior.object.visible = true;
             behavior.object.opacity = 1;
             behavior.object.set_bbox_changed();
@@ -405,10 +438,68 @@
 
     resetSiblingSkins(instance) {
       for (const sibling of instance.siblings || []) {
+        for (const behavior of sibling.behaviorSkins || []) {
+          try { root.cr.behaviors.SkymenSkin.prototype.acts.UseDefault.call(behavior); } catch (_) {}
+        }
+      }
+    }
+
+    markSkinObject(object, ownerId, seen = new Set()) {
+      if (!object || seen.has(object)) return;
+      seen.add(object);
+      object.__gmpRemoteSkinOwner = String(ownerId || "unknown");
+      object.__gmpRemoteSkinUid = object.uid;
+      for (const behavior of object.behaviorSkins || []) {
+        if (behavior && behavior.object) this.markSkinObject(behavior.object, ownerId, seen);
+      }
+    }
+
+    destroySkinObjects(instance, ownerId) {
+      if (!instance) return;
+      const seen = new Set();
+      const destroyBehavior = (behavior) => {
+        if (!behavior || seen.has(behavior)) return;
+        seen.add(behavior);
+        const object = behavior.object;
+        if (object) this.markSkinObject(object, ownerId);
         try {
-          const behavior = sibling.behaviorSkins && sibling.behaviorSkins[0];
-          if (behavior) root.cr.behaviors.SkymenSkin.prototype.acts.UseDefault.call(behavior);
-        } catch (_) {}
+          if (typeof behavior.destroy === "function") behavior.destroy();
+          else if (object) this.runtime.DestroyInstance(object);
+        } catch (_) {
+          try { if (object) this.runtime.DestroyInstance(object); } catch (_) {}
+        }
+        try { behavior.object = null; } catch (_) {}
+      };
+      for (const subject of [instance, ...(instance.siblings || [])]) {
+        for (const behavior of subject && subject.behaviorSkins || []) destroyBehavior(behavior);
+      }
+    }
+
+    sweepOwnedVisuals(ownerId) {
+      const wanted = ownerId == null ? null : String(ownerId);
+      const doomed = [];
+      for (const type of this.runtime.types_by_index || []) {
+        for (const instance of Array.from(type.instances || [])) {
+          const skinOwner = instance && instance.__gmpRemoteSkinOwner;
+          const labelOwner = instance && instance.__gmpNameLabelOwner;
+          const exactSkin = skinOwner && instance.__gmpRemoteSkinUid === instance.uid;
+          const exactLabel = labelOwner && instance.__gmpNameLabelUid === instance.uid;
+          if ((exactSkin && (wanted == null || skinOwner === wanted)) ||
+              (exactLabel && (wanted == null || labelOwner === wanted))) doomed.push(instance);
+          else {
+            if (skinOwner && !exactSkin) {
+              instance.__gmpRemoteSkinOwner = null;
+              instance.__gmpRemoteSkinUid = null;
+            }
+            if (labelOwner && !exactLabel) {
+              instance.__gmpNameLabelOwner = null;
+              instance.__gmpNameLabelUid = null;
+            }
+          }
+        }
+      }
+      for (const instance of new Set(doomed)) {
+        try { this.runtime.DestroyInstance(instance); } catch (_) {}
       }
     }
   }

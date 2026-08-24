@@ -6,6 +6,16 @@
 
   const PATCH_NOTES = [
     {
+      version: "0.2.0-alpha.7",
+      title: "Clean players and names",
+      changes: [
+        "Stopped menu preview characters from being synchronized or rendered as multiplayer players.",
+        "Destroyed every custom-skin helper sprite when a player leaves or changes levels, preventing frozen skin copies.",
+        "Cleaned stale name labels and forced username text to redraw correctly for joining players.",
+        "Cleared interpolation snapshots on every level transition so old poses cannot reappear in a new level."
+      ]
+    },
+    {
       version: "0.2.0-alpha.6",
       title: "Stay in the room",
       changes: [

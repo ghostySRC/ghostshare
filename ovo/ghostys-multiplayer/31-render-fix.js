@@ -26,6 +26,11 @@
         }
       }
       this.normalizeRemoteVisuals(remote);
+      for (const sibling of remote.instance.siblings || []) {
+        for (const behavior of sibling.behaviorSkins || []) {
+          if (behavior && behavior.object) this.markSkinObject(behavior.object, remote.playerId);
+        }
+      }
     };
 
     // Construct creates container siblings and their skin behaviors over
