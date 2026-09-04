@@ -4,12 +4,12 @@
   const GLOBAL_KEY = "__ghostyOvoFpsUnlocker";
   const DEFAULT_FPS = 240;
   const MAX_WAIT_MS = 20000;
+  const OVERLAY_ID = "ghosty-ovo-fps-diagnostic";
 
-  // If the mod is loaded twice, reuse the existing instance instead of
-  // installing a second game loop.
   if (globalThis[GLOBAL_KEY] && globalThis[GLOBAL_KEY].installed) {
     globalThis[GLOBAL_KEY].setFPS(DEFAULT_FPS);
     globalThis[GLOBAL_KEY].start();
+    globalThis[GLOBAL_KEY].showOverlay();
     console.info(`[OvO FPS Unlocker] Already loaded; target set to ${DEFAULT_FPS} FPS.`);
     return;
   }
@@ -20,18 +20,21 @@
     targetFPS: DEFAULT_FPS,
     runtime: null,
     lastError: null,
+    engineTPS: 0,
+    displayFPS: 0,
     setFPS: () => {},
     start: () => {},
     stop: () => {},
     restore: () => {},
+    showOverlay: () => {},
+    hideOverlay: () => {},
     info: () => ({ installed: false, running: false, targetFPS: DEFAULT_FPS })
   };
+
   globalThis[GLOBAL_KEY] = state;
-  // Short alias for console use: ovoFPS.setFPS(144), ovoFPS.stop(), etc.
   globalThis.ovoFPS = state;
 
   function resolveRuntime() {
-    // Standard Construct 2 runtime accessor.
     try {
       if (typeof globalThis.cr_getC2Runtime === "function") {
         const rt = globalThis.cr_getC2Runtime();
@@ -39,19 +42,16 @@
       }
     } catch (_) {}
 
-    // OvO Modloader-compatible fallback. Existing OvO mods use the same
-    // execCode bridge to get at the Construct 2 runtime.
+    // This is the same runtime bridge used by existing OvO Modloader mods.
     try {
       if (typeof globalThis.c2_callFunction === "function") {
         const key = "__ghostyOvoFpsRuntime";
         const hadOld = Object.prototype.hasOwnProperty.call(globalThis, key);
         const old = globalThis[key];
 
-        globalThis.c2_callFunction("execCode", [
-          `globalThis.${key} = this.runtime`
-        ]);
-
+        globalThis.c2_callFunction("execCode", [`globalThis.${key} = this.runtime`]);
         const rt = globalThis[key];
+
         if (hadOld) globalThis[key] = old;
         else delete globalThis[key];
 
@@ -59,7 +59,6 @@
       }
     } catch (_) {}
 
-    // Last-resort canvas lookup used by normal Construct 2 exports.
     try {
       const canvas = document.getElementById("c2canvas");
       const rt = canvas && canvas.c2runtime;
@@ -82,6 +81,15 @@
     let timerId = null;
     let inTick = false;
     let nextTickAt = performance.now();
+
+    // Independent counters: engineTPS counts our actual Construct ticks,
+    // displayFPS counts requestAnimationFrame callbacks (usually monitor Hz).
+    let engineFrames = 0;
+    let engineWindowStart = performance.now();
+    let displayFrames = 0;
+    let displayWindowStart = performance.now();
+    let displayRafId = null;
+    let overlayTimer = null;
 
     function clearCustomTimer() {
       if (timerId !== null) {
@@ -106,23 +114,86 @@
       } catch (_) {}
     }
 
+    function sampleEngineTPS(now) {
+      engineFrames++;
+      const elapsed = now - engineWindowStart;
+      if (elapsed >= 500) {
+        state.engineTPS = Math.round((engineFrames * 1000) / elapsed);
+        engineFrames = 0;
+        engineWindowStart = now;
+      }
+    }
+
+    function displayCounter(now) {
+      displayFrames++;
+      const elapsed = now - displayWindowStart;
+      if (elapsed >= 500) {
+        state.displayFPS = Math.round((displayFrames * 1000) / elapsed);
+        displayFrames = 0;
+        displayWindowStart = now;
+      }
+      displayRafId = requestAnimationFrame(displayCounter);
+    }
+
+    function getOverlay() {
+      return document.getElementById(OVERLAY_ID);
+    }
+
+    function updateOverlay() {
+      const el = getOverlay();
+      if (!el) return;
+
+      const engine = state.engineTPS || "…";
+      const display = state.displayFPS || "…";
+      el.textContent = `ENGINE ${engine} TPS  |  DISPLAY ${display} FPS  |  TARGET ${state.targetFPS}`;
+    }
+
+    state.showOverlay = () => {
+      let el = getOverlay();
+      if (!el) {
+        el = document.createElement("div");
+        el.id = OVERLAY_ID;
+        Object.assign(el.style, {
+          position: "fixed",
+          left: "8px",
+          bottom: "8px",
+          zIndex: "2147483647",
+          padding: "5px 8px",
+          background: "rgba(255,255,255,.92)",
+          color: "#000",
+          border: "2px solid #000",
+          font: "bold 12px monospace",
+          pointerEvents: "none",
+          whiteSpace: "nowrap"
+        });
+        (document.body || document.documentElement).appendChild(el);
+      }
+      updateOverlay();
+      if (overlayTimer === null) overlayTimer = setInterval(updateOverlay, 200);
+    };
+
+    state.hideOverlay = () => {
+      const el = getOverlay();
+      if (el) el.remove();
+      if (overlayTimer !== null) {
+        clearInterval(overlayTimer);
+        overlayTimer = null;
+      }
+    };
+
     function scheduleNext() {
       if (!state.running) return;
 
-      // Construct normally suspends itself in a hidden tab. Do not burn CPU
-      // while hidden; its normal resume path will call runtime.tick again.
       if (runtime.isSuspended || document.hidden) {
         clearCustomTimer();
         timerId = setTimeout(scheduleNext, 100);
         return;
       }
 
-      const fps = state.targetFPS;
-      const interval = 1000 / fps;
+      const interval = 1000 / state.targetFPS;
       const now = performance.now();
 
-      // After a breakpoint, lag spike, tab switch, etc. do not attempt to run
-      // a huge backlog of catch-up ticks.
+      // Never try to process a giant backlog after a pause or lag spike.
       if (!Number.isFinite(nextTickAt) || nextTickAt < now - interval * 4) {
         nextTickAt = now;
       }
@@ -148,16 +219,20 @@
       }
 
       inTick = true;
+      const now = Number.isFinite(timestamp) ? timestamp : performance.now();
+
       try {
-        // Run Construct's real tick so its delta-time remains based on actual
-        // elapsed time. Construct schedules a native RAF at the start of this
-        // call; cancel that schedule immediately afterwards so only our higher
-        // frequency scheduler drives the game.
-        originalTick.call(runtime, false, timestamp || performance.now(), false);
+        // Keep real timestamps so higher TPS does NOT deliberately multiply
+        // the game's time scale. We only change how often Construct is ticked.
+        originalTick.call(runtime, false, now, false);
+        sampleEngineTPS(performance.now());
+
+        // originalTick schedules Construct's normal RAF. Kill that schedule so
+        // our timer is the only foreground game-loop driver.
         cancelConstructSchedule();
       } catch (err) {
         state.lastError = err;
-        console.error("[OvO FPS Unlocker] Tick failed; restoring normal scheduler.", err);
+        console.error("[OvO FPS Unlocker] Tick failed; restoring stock scheduler.", err);
         state.stop();
         return;
       } finally {
@@ -168,16 +243,13 @@
     }
 
     function patchedTick(backgroundWake, timestamp, debugStep) {
-      // Preserve Construct's special background/debug behavior.
       if (backgroundWake || debugStep) {
         return originalTick.call(runtime, backgroundWake, timestamp, debugStep);
       }
 
-      // Construct calls tick(false) itself when resuming. Fold that request
-      // back into the unlocked scheduler rather than creating another loop.
       clearCustomTimer();
       nextTickAt = performance.now();
-      runUnlockedTick(timestamp || performance.now());
+      runUnlockedTick(Number.isFinite(timestamp) ? timestamp : performance.now());
     }
 
     state.runtime = runtime;
@@ -192,6 +264,7 @@
       state.targetFPS = n;
       nextTickAt = performance.now();
       if (state.running) scheduleNext();
+      updateOverlay();
       console.info(`[OvO FPS Unlocker] Target set to ${n} FPS.`);
       return n;
     };
@@ -202,8 +275,10 @@
       runtime.tick = patchedTick;
       state.running = true;
       nextTickAt = performance.now();
+      engineFrames = 0;
+      engineWindowStart = performance.now();
       scheduleNext();
-      console.info(`[OvO FPS Unlocker] Running at ${state.targetFPS} FPS target.`);
+      console.info(`[OvO FPS Unlocker] Running at ${state.targetFPS} TPS target.`);
     };
 
     state.stop = () => {
@@ -213,12 +288,11 @@
       cancelConstructSchedule();
       runtime.tick = originalTick;
 
-      // Kick Construct's original RAF loop back on immediately.
       try {
         originalTick.call(runtime, false, performance.now(), false);
       } catch (err) {
         state.lastError = err;
-        console.error("[OvO FPS Unlocker] Could not restart the stock scheduler.", err);
+        console.error("[OvO FPS Unlocker] Could not restart stock scheduler.", err);
       }
 
       console.info("[OvO FPS Unlocker] Disabled; stock Construct scheduler restored.");
@@ -229,19 +303,29 @@
       installed: state.installed,
       running: state.running,
       targetFPS: state.targetFPS,
-      measuredConstructFPS: Number.isFinite(runtime.fps) ? runtime.fps : null,
+      engineTPS: state.engineTPS,
+      displayFPS: state.displayFPS,
+      constructReportedFPS: Number.isFinite(runtime.fps) ? runtime.fps : null,
       tickCount: Number.isFinite(runtime.tickcount) ? runtime.tickcount : null,
+      suspended: !!runtime.isSuspended,
+      hidden: !!document.hidden,
       lastError: state.lastError
     });
+
+    if (typeof requestAnimationFrame === "function") {
+      displayRafId = requestAnimationFrame(displayCounter);
+    }
 
     cancelConstructSchedule();
     runtime.tick = patchedTick;
     nextTickAt = performance.now();
     scheduleNext();
+    state.showOverlay();
 
     console.info(
-      `[OvO FPS Unlocker] Loaded. Target: ${state.targetFPS} FPS. ` +
-      "Console controls: ovoFPS.setFPS(144), ovoFPS.setFPS(240), ovoFPS.stop(), ovoFPS.start(), ovoFPS.info()"
+      `[OvO FPS Unlocker] Loaded. Target: ${state.targetFPS} TPS. ` +
+      "ENGINE = Construct ticks/sec; DISPLAY = browser RAF/display refresh. " +
+      "Console: ovoFPS.info(), ovoFPS.setFPS(144), ovoFPS.setFPS(240), ovoFPS.hideOverlay()"
     );
   }
 
